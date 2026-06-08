@@ -1,0 +1,15 @@
+services:
+  nodecast-tv:
+    image: ghcr.io/cyb3rgh05t/nodecast-tv:latest
+    build: https://github.com/cyb3rgh05t/nodecast-tv.git#main
+    container_name: streamnet-tv
+    ports:
+      - "8000:8000"
+    volumes:
+      - /opt/appdata/streammnet:/app/data
+    restart: unless-stopped
+    env_file:
+      - /opt/appdata/streammnet/.env # .env liegt im Volume-Ordner auf dem Host
+    environment:
+      - NODE_ENV=production
+      - PORT=8000 # Internal container port

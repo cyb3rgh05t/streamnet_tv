@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login - StreamNet TV</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="css/main.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --login-canvas-a: var(--color-bg-primary);
+        --login-canvas-b: var(--color-bg-secondary);
+        --login-canvas-c: var(--color-surface);
+        --login-card-bg: var(--glass-bg);
+        --login-card-border: var(--glass-border);
+        --login-input-bg: var(--color-bg-tertiary);
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        color: var(--color-text-primary);
+        font-family:
+          "Outfit",
+          "Inter",
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+        background: linear-gradient(
+          135deg,
+          var(--login-canvas-a) 0%,
+          var(--login-canvas-b) 52%,
+          var(--login-canvas-c) 100%
+        );
+      }
+
+      .login-container {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        padding: 32px 20px;
+      }
+
+      .login-box {
+        position: relative;
+        overflow: hidden;
+        background: var(--login-card-bg);
+        backdrop-filter: blur(12px);
+        padding: 44px 42px 34px;
+        border-radius: 22px;
+        box-shadow:
+          var(--shadow-lg),
+          inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        width: 100%;
+        max-width: 660px;
+        border: 1px solid var(--login-card-border);
+        animation: loginPop 0.55s cubic-bezier(0.25, 0.85, 0.25, 1);
+      }
+
+      .login-logo {
+        text-align: center;
+        width: 100%;
+        margin-bottom: 36px;
+      }
+
+      .login-logo .logo-mark {
+        width: min(560px, 100%);
+        height: auto;
+        margin: 0 auto 30px;
+        display: block;
+        filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.45));
+      }
+
+      .login-logo h1 {
+        font-family: "Century Gothic", sans-serif;
+        font-size: 28px;
+        font-weight: 500;
+        color: var(--color-text-primary);
+        margin: 0;
+      }
+
+      .login-logo .brand-accent {
+        color: var(--color-accent);
+      }
+
+      .login-logo p {
+        color: var(--color-text-secondary);
+        margin: 6px 0 0;
+        font-size: 14px;
+        letter-spacing: 0.015em;
+      }
+
+      .login-logo .login-slogan {
+        margin: 0;
+        color: var(--color-text-secondary);
+        font-size: 16px;
+        font-weight: 600;
+        line-height: 1.35;
+        letter-spacing: 0.01em;
+      }
+
+      #login-subtitle {
+        display: none;
+      }
+
+      .login-slogan-accent {
+        color: var(--color-accent);
+      }
+
+      .form-group {
+        margin-bottom: 16px;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--color-text-primary);
+        font-weight: 500;
+        font-size: 13px;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+      }
+
+      .form-group input {
+        width: 100%;
+        padding: 14px 16px;
+        background: var(--login-input-bg);
+        border: 1px solid var(--color-border-light);
+        border-radius: 12px;
+        color: var(--color-text-primary);
+        font-size: 15px;
+        font-family: "Outfit", sans-serif;
+        transition: all 0.2s ease;
+        box-sizing: border-box;
+      }
+
+      .form-group input:focus {
+        outline: none;
+        border-color: var(--color-accent);
+        background: var(--color-bg-hover);
+        box-shadow: 0 0 0 4px rgba(var(--color-accent-rgb), 0.18);
+      }
+
+      .form-group input::placeholder {
+        color: var(--color-text-muted);
+      }
+
+      .btn-login {
+        width: 100%;
+        padding: 14px;
+        background: linear-gradient(
+          135deg,
+          var(--cffy-theme-primary-a20) 0%,
+          var(--cffy-theme-primary-a10) 45%,
+          var(--cffy-theme-primary-a0) 100%
+        );
+        color: var(--color-bg-primary);
+        border: none;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        font-family: "Outfit", sans-serif;
+        cursor: pointer;
+        transition: all 0.22s ease;
+        box-shadow: none;
+      }
+
+      .btn-login:hover {
+        transform: translateY(-2px);
+        box-shadow: none;
+      }
+
+      .btn-login:active {
+        transform: translateY(0);
+      }
+
+      .btn-login:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .error-message {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--color-error);
+        padding: 12px 16px;
+        border-radius: 12px;
+        margin-bottom: 16px;
+        border: 1px solid rgba(239, 68, 68, 0.2);
+        font-size: 14px;
+        display: none;
+      }
+
+      .error-message.show {
+        display: block;
+      }
+
+      .setup-message {
+        background: var(--color-accent-dim);
+        color: var(--color-accent-hover);
+        padding: 12px 16px;
+        border-radius: 12px;
+        margin-bottom: 16px;
+        border: 1px solid rgba(var(--color-accent-rgb), 0.35);
+        font-size: 14px;
+        display: none;
+      }
+
+      .setup-message.show {
+        display: block;
+      }
+
+      .login-lang-switch {
+        position: fixed;
+        top: 14px;
+        right: 14px;
+        display: inline-flex;
+        gap: 6px;
+        z-index: 20;
+      }
+
+      .lang-btn {
+        border: 1px solid var(--color-border-light);
+        background: var(--color-bg-tertiary);
+        color: var(--color-text-secondary);
+        font-family: "Outfit", sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+        border-radius: 999px;
+        padding: 5px 10px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .lang-btn.active {
+        border-color: var(--color-accent);
+        color: var(--color-accent-hover);
+        background: var(--color-accent-dim);
+      }
+
+      .sso-divider {
+        text-align: center;
+        margin: 18px 0;
+        position: relative;
+      }
+
+      .sso-divider span {
+        background: var(--login-card-bg);
+        padding: 0 10px;
+        color: var(--color-text-secondary);
+        font-size: 13px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .sso-divider .line {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: var(--color-border-light);
+        z-index: 0;
+      }
+
+      #btn-sso-login {
+        background: var(--color-bg-secondary);
+        border: 1px solid var(--color-border-light);
+        color: var(--color-text-primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+
+      #btn-sso-login:hover {
+        background: var(--color-bg-hover);
+        border-color: var(--color-accent);
+        color: var(--color-accent-hover);
+        box-shadow: none;
+      }
+
+      @keyframes loginPop {
+        0% {
+          opacity: 0;
+          transform: translateY(12px) scale(0.985);
+        }
+        100% {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      @media (max-width: 600px) {
+        .login-container {
+          padding: 20px 12px;
+        }
+
+        .login-box {
+          padding: 32px 18px 24px;
+          border-radius: 18px;
+          max-width: min(100%, 560px);
+        }
+
+        .login-logo .logo-mark {
+          width: min(420px, 100%);
+        }
+
+        .login-slogan {
+          font-size: 15px;
+        }
+
+        .login-lang-switch {
+          top: 10px;
+          right: 10px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .login-box {
+          animation: none;
+        }
+
+        .btn-login,
+        .lang-btn {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="login-lang-switch" aria-label="Language switch">
+      <button type="button" id="lang-de" class="lang-btn active">DE</button>
+      <button type="button" id="lang-en" class="lang-btn">EN</button>
+    </div>
+
+    <div class="login-container">
+      <div class="login-box">
+        <div class="login-logo">
+          <img
+            src="img/StreamNet_TV_Logo_full.svg"
+            class="logo-mark"
+            alt="StreamNet TV Logo"
+          />
+          <p id="login-slogan" class="login-slogan">
+            <span id="login-slogan-lead"
+              >Die Zukunft des Streamings ist gelandet,</span
+            >
+            <span id="login-slogan-accent" class="login-slogan-accent"
+              >Kabel war gestern .....</span
+            >
+          </p>
+          <p id="login-subtitle">Anmelden, um fortzufahren</p>
+          <p id="admin-mode-hint" style="display: none; font-size: 12px">
+            Admin-Login-Modus aktiviert
+          </p>
+        </div>
+
+        <div class="error-message" id="error-message"></div>
+        <div class="setup-message" id="setup-message">
+          Willkommen! Bitte erstelle zuerst deinen Admin-Account.
+        </div>
+
+        <form id="login-form">
+          <div class="form-group">
+            <label for="username" id="username-label">Benutzername</label>
+            <input
+              type="text"
+              id="username"
+              name="username"
+              required
+              autocomplete="username"
+              placeholder="Benutzernamen eingeben"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="password" id="password-label">Passwort</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              required
+              autocomplete="current-password"
+              minlength="6"
+              placeholder="Passwort eingeben"
+            />
+          </div>
+
+          <button type="submit" class="btn-login" id="submit-btn">
+            Anmelden
+          </button>
+        </form>
+
+        <div class="sso-divider">
+          <span id="divider-or">ODER</span>
+          <div class="line"></div>
+        </div>
+
+        <button id="btn-sso-login" class="btn-login">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            style="width: 20px; height: 20px"
+          >
+            <path
+              d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"
+            />
+          </svg>
+          <span id="btn-sso-label">Mit SSO anmelden</span>
+        </button>
+      </div>
+    </div>
+
+    <script>
+      const LOGIN_I18N = {
+        de: {
+          sloganLead: "Die Zukunft des Streamings ist gelandet,",
+          sloganAccent: "Kabel war gestern .....",
+          subtitleDefault: "Anmelden, um fortzufahren",
+          subtitleCreateAdmin: "Admin-Account erstellen",
+          subtitleAdminLocal: "Admin-Login (Lokales Konto)",
+          subtitleXtream: "Mit deinen StreamNet TV Zugangsdaten anmelden",
+          adminModeHint: "Admin-Login-Modus aktiviert",
+          setupMessage:
+            "Willkommen! Bitte erstelle zuerst deinen Admin-Account.",
+          usernameLabel: "Benutzername",
+          passwordLabel: "Passwort",
+          usernamePlaceholder: "Benutzernamen eingeben",
+          passwordPlaceholder: "Passwort eingeben",
+          passwordMinPlaceholder: "Mindestens 6 Zeichen",
+          submitSignIn: "Anmelden",
+          submitCreate: "Account erstellen",
+          submitAdmin: "Admin anmelden",
+          submitWaiting: "Bitte warten...",
+          dividerOr: "ODER",
+          ssoLogin: "Mit SSO anmelden",
+          authFailed: "Authentifizierung fehlgeschlagen",
+          adminUsername: "Admin-Benutzername",
+          adminPassword: "Admin-Passwort",
+        },
+        en: {
+          sloganLead: "The future of streaming has landed,",
+          sloganAccent: "cable is yesterday .....",
+          subtitleDefault: "Sign in to continue",
+          subtitleCreateAdmin: "Create Admin Account",
+          subtitleAdminLocal: "Admin Login (Local Account)",
+          subtitleXtream: "Sign in with your StreamNet TV credentials",
+          adminModeHint: "Admin login mode enabled",
+          setupMessage:
+            "Welcome! Please create your admin account to get started.",
+          usernameLabel: "Username",
+          passwordLabel: "Password",
+          usernamePlaceholder: "Enter your username",
+          passwordPlaceholder: "Enter your password",
+          passwordMinPlaceholder: "Minimum 6 characters",
+          submitSignIn: "Sign In",
+          submitCreate: "Create Account",
+          submitAdmin: "Admin Sign In",
+          submitWaiting: "Please wait...",
+          dividerOr: "OR",
+          ssoLogin: "Sign in with SSO",
+          authFailed: "Authentication failed",
+          adminUsername: "Admin username",
+          adminPassword: "Admin password",
+        },
+      };
+
+      let currentLang = localStorage.getItem("streamnet_login_lang") || "de";
+
+      function t(key) {
+        return LOGIN_I18N[currentLang]?.[key] || LOGIN_I18N.de[key] || key;
+      }
+
+      function applyLanguageUI() {
+        document.documentElement.lang = currentLang;
+        document.getElementById("login-slogan-lead").textContent =
+          t("sloganLead");
+        document.getElementById("login-slogan-accent").textContent =
+          t("sloganAccent");
+        document.getElementById("username-label").textContent =
+          t("usernameLabel");
+        document.getElementById("password-label").textContent =
+          t("passwordLabel");
+        document.getElementById("setup-message").textContent =
+          t("setupMessage");
+        document.getElementById("admin-mode-hint").textContent =
+          t("adminModeHint");
+        document.getElementById("divider-or").textContent = t("dividerOr");
+        document.getElementById("btn-sso-label").textContent = t("ssoLogin");
+
+        document
+          .getElementById("lang-de")
+          .classList.toggle("active", currentLang === "de");
+        document
+          .getElementById("lang-en")
+          .classList.toggle("active", currentLang === "en");
+      }
+
+      // Start SSO Login
+      document.getElementById("btn-sso-login").addEventListener("click", () => {
+        window.location.href = "/api/auth/oidc/login";
+      });
+
+      document.getElementById("lang-de").addEventListener("click", () => {
+        currentLang = "de";
+        localStorage.setItem("streamnet_login_lang", currentLang);
+        applyLanguageUI();
+        applyLoginModeUI();
+      });
+
+      document.getElementById("lang-en").addEventListener("click", () => {
+        currentLang = "en";
+        localStorage.setItem("streamnet_login_lang", currentLang);
+        applyLanguageUI();
+        applyLoginModeUI();
+      });
+
+      // Check for URL Error params
+      const urlParams = new URLSearchParams(window.location.search);
+      const error = urlParams.get("error");
+      if (error) {
+        const errorMessage = document.getElementById("error-message");
+        errorMessage.textContent = error;
+        errorMessage.classList.add("show");
+        // Clean URL
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname,
+        );
+      }
+
+      // Check if setup is required
+      let isSetupMode = false;
+      let isXtreamMode = false;
+      let adminLoginMode = false;
+
+      function applyLoginModeUI() {
+        const subtitle = document.getElementById("login-subtitle");
+        const submitBtn = document.getElementById("submit-btn");
+        const setupMsg = document.getElementById("setup-message");
+        const usernameInput = document.getElementById("username");
+        const passwordInput = document.getElementById("password");
+        const adminHint = document.getElementById("admin-mode-hint");
+
+        if (isSetupMode) {
+          subtitle.textContent = t("subtitleCreateAdmin");
+          submitBtn.textContent = t("submitCreate");
+          setupMsg.classList.add("show");
+          usernameInput.placeholder = t("usernamePlaceholder");
+          passwordInput.placeholder = t("passwordMinPlaceholder");
+          adminHint.style.display = "none";
+          return;
+        }
+
+        setupMsg.classList.remove("show");
+
+        if (isXtreamMode && adminLoginMode) {
+          subtitle.textContent = t("subtitleAdminLocal");
+          submitBtn.textContent = t("submitAdmin");
+          usernameInput.placeholder = t("adminUsername");
+          passwordInput.placeholder = t("adminPassword");
+          adminHint.style.display = "block";
+          return;
+        }
+
+        if (isXtreamMode) {
+          subtitle.textContent = t("subtitleXtream");
+          submitBtn.textContent = t("submitSignIn");
+          usernameInput.placeholder = t("usernameLabel");
+          passwordInput.placeholder = t("passwordLabel");
+          adminHint.style.display = "none";
+          return;
+        }
+
+        subtitle.textContent = t("subtitleDefault");
+        submitBtn.textContent = t("submitSignIn");
+        usernameInput.placeholder = t("usernamePlaceholder");
+        passwordInput.placeholder = t("passwordPlaceholder");
+        adminHint.style.display = "none";
+      }
+
+      async function checkSetupRequired() {
+        try {
+          const response = await fetch("/api/auth/setup-required");
+          const data = await response.json();
+
+          if (data.xtreamAuthEnabled) {
+            isSetupMode = false;
+            isXtreamMode = true;
+            // Hide SSO in Xtream mode
+            document.querySelector(".sso-divider").style.display = "none";
+            document.getElementById("btn-sso-login").style.display = "none";
+            applyLoginModeUI();
+            return;
+          }
+
+          if (data.setupRequired) {
+            isSetupMode = true;
+            isXtreamMode = false;
+            // Hide SSO in setup mode
+            document.querySelector(".sso-divider").style.display = "none";
+            document.getElementById("btn-sso-login").style.display = "none";
+            applyLoginModeUI();
+            return;
+          }
+
+          isSetupMode = false;
+          isXtreamMode = false;
+          applyLoginModeUI();
+        } catch (err) {
+          console.error("Error checking setup status:", err);
+        }
+      }
+
+      // Hidden admin login toggle: triple-click logo in Xtream mode.
+      (() => {
+        const logo = document.querySelector(".login-logo .logo-mark");
+        if (!logo) return;
+
+        let clickCount = 0;
+        let resetTimer = null;
+
+        logo.addEventListener("click", () => {
+          if (!isXtreamMode || isSetupMode) return;
+
+          clickCount += 1;
+          if (resetTimer) clearTimeout(resetTimer);
+          resetTimer = setTimeout(() => {
+            clickCount = 0;
+          }, 900);
+
+          if (clickCount >= 3) {
+            clickCount = 0;
+            adminLoginMode = !adminLoginMode;
+            applyLoginModeUI();
+          }
+        });
+      })();
+
+      // Handle form submission
+      document
+        .getElementById("login-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const username = document.getElementById("username").value;
+          const password = document.getElementById("password").value;
+          const submitBtn = document.getElementById("submit-btn");
+          const errorMessage = document.getElementById("error-message");
+
+          // Clear previous errors
+          errorMessage.classList.remove("show");
+          errorMessage.textContent = "";
+
+          // Disable button
+          submitBtn.disabled = true;
+          submitBtn.textContent = t("submitWaiting");
+
+          try {
+            const endpoint = isSetupMode
+              ? "/api/auth/setup"
+              : isXtreamMode && adminLoginMode
+                ? "/api/auth/admin-login"
+                : "/api/auth/login";
+            const response = await fetch(endpoint, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ username, password }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+              throw new Error(data.error || t("authFailed"));
+            }
+
+            // Store token
+            localStorage.setItem("authToken", data.token);
+
+            // Redirect to main app (replace history to prevent back button issues)
+            window.location.replace("/");
+          } catch (err) {
+            errorMessage.textContent = err.message;
+            errorMessage.classList.add("show");
+            submitBtn.disabled = false;
+            applyLoginModeUI();
+          }
+        });
+
+      // Check setup status on load
+      applyLanguageUI();
+      checkSetupRequired();
+    </script>
+  </body>
+</html>
