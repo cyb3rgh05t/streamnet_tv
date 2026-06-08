@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/img/logo-banner.png" alt="StreamNet TV" height="60" />
+  <img src="public/img/logo-banner.svg" alt="StreamNet TV" height="60" />
 </p>
 
 # What is StreamNet TV?
@@ -23,17 +23,6 @@ StreamNet TV is a modern, web-based IPTV player featuring Live TV, EPG, Movies (
 - **🔊 Smart Audio**: Configurable 5.1→Stereo downmix presets (ITU, Night Mode, Cinematic) with automatic passthrough for compatible sources.
 - **📦 Stream Processing**: Auto-detection of stream codecs with smart remux/transcode decisions.
 - **🐳 Docker Ready**: Easy deployment containerization.
-
-## Screenshots
-
-<div align="center">
-  <img src="public/img/screenshots/screenshot-dashboard.png" width="45%" alt="Dashboard" />
-  <img src="public/img/screenshots/screenshot-1.png" width="45%" alt="Live TV" />
-  <img src="public/img/screenshots/screenshot-2.png" width="45%" alt="TV Guide" />
-  <img src="public/img/screenshots/screenshot-3.png" width="45%" alt="Movies" />
-  <img src="public/img/screenshots/screenshot-4.png" width="45%" alt="Series" />
-  <img src="public/img/screenshots/screenshot-settings.png" width="45%" alt="Settings" />
-</div>
 
 ## Getting Started
 
