@@ -1,7 +1,7 @@
 services:
-  nodecast-tv:
-    image: ghcr.io/cyb3rgh05t/nodecast-tv:latest
-    build: https://github.com/cyb3rgh05t/nodecast-tv.git#main
+  streamnet-tv:
+    image: ghcr.io/cyb3rgh05t/streamnet_tv:latest
+    build: https://github.com/cyb3rgh05t/streamnet_tv.git#main
     container_name: streamnet-tv
     ports:
       - "8000:8000"
