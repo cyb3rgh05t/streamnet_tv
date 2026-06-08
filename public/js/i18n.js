@@ -88,6 +88,11 @@
       "series.episodeLabel": "Episode",
 
       "home.kicker": "Tonight on StreamNet TV",
+      "home.kickerMorning": "This morning on StreamNet TV",
+      "home.kickerNoon": "This noon on StreamNet TV",
+      "home.kickerAfternoon": "This afternoon on StreamNet TV",
+      "home.kickerEvening": "Tonight on StreamNet TV",
+      "home.kickerNight": "Tonight on StreamNet TV",
       "home.title": "Your entertainment command center",
       "home.subtitleLoading": "Loading your personalized highlights...",
       "home.watchLive": "Watch Live TV",
@@ -332,6 +337,11 @@
       "series.episodeLabel": "Episode",
 
       "home.kicker": "Heute Abend auf StreamNet TV",
+      "home.kickerMorning": "Heute Morgen auf StreamNet TV",
+      "home.kickerNoon": "Heute Mittag auf StreamNet TV",
+      "home.kickerAfternoon": "Heute Nachmittag auf StreamNet TV",
+      "home.kickerEvening": "Heute Abend auf StreamNet TV",
+      "home.kickerNight": "Heute Nacht auf StreamNet TV",
       "home.title": "Deine Entertainment-Zentrale",
       "home.subtitleLoading": "Deine persönlichen Highlights werden geladen...",
       "home.watchLive": "Live TV schauen",

@@ -49,44 +49,58 @@ class SettingsPage {
 
     // Load current settings
     if (this.app.player?.settings) {
-      arrowKeysToggle.checked = this.app.player.settings.arrowKeysChangeChannel;
-      overlayDurationInput.value = this.app.player.settings.overlayDuration;
-      defaultVolumeSlider.value = this.app.player.settings.defaultVolume;
-      volumeValueDisplay.textContent =
-        this.app.player.settings.defaultVolume + "%";
-      rememberVolumeToggle.checked = this.app.player.settings.rememberVolume;
-      autoPlayNextToggle.checked = this.app.player.settings.autoPlayNextEpisode;
+      if (arrowKeysToggle) {
+        arrowKeysToggle.checked =
+          this.app.player.settings.arrowKeysChangeChannel;
+      }
+      if (overlayDurationInput) {
+        overlayDurationInput.value = this.app.player.settings.overlayDuration;
+      }
+      if (defaultVolumeSlider) {
+        defaultVolumeSlider.value = this.app.player.settings.defaultVolume;
+      }
+      if (volumeValueDisplay) {
+        volumeValueDisplay.textContent =
+          this.app.player.settings.defaultVolume + "%";
+      }
+      if (rememberVolumeToggle) {
+        rememberVolumeToggle.checked = this.app.player.settings.rememberVolume;
+      }
+      if (autoPlayNextToggle) {
+        autoPlayNextToggle.checked =
+          this.app.player.settings.autoPlayNextEpisode;
+      }
     }
 
     // Arrow keys toggle
-    arrowKeysToggle.addEventListener("change", () => {
+    arrowKeysToggle?.addEventListener("change", () => {
       this.app.player.settings.arrowKeysChangeChannel = arrowKeysToggle.checked;
       this.app.player.saveSettings();
     });
 
     // Overlay duration
-    overlayDurationInput.addEventListener("change", () => {
+    overlayDurationInput?.addEventListener("change", () => {
       this.app.player.settings.overlayDuration =
         parseInt(overlayDurationInput.value) || 5;
       this.app.player.saveSettings();
     });
 
     // Default volume slider
-    defaultVolumeSlider.addEventListener("input", () => {
+    defaultVolumeSlider?.addEventListener("input", () => {
       const value = defaultVolumeSlider.value;
-      volumeValueDisplay.textContent = value + "%";
+      if (volumeValueDisplay) volumeValueDisplay.textContent = value + "%";
       this.app.player.settings.defaultVolume = parseInt(value);
       this.app.player.saveSettings();
     });
 
     // Remember volume toggle
-    rememberVolumeToggle.addEventListener("change", () => {
+    rememberVolumeToggle?.addEventListener("change", () => {
       this.app.player.settings.rememberVolume = rememberVolumeToggle.checked;
       this.app.player.saveSettings();
     });
 
     // Auto-play next episode toggle
-    autoPlayNextToggle.addEventListener("change", () => {
+    autoPlayNextToggle?.addEventListener("change", () => {
       this.app.player.settings.autoPlayNextEpisode = autoPlayNextToggle.checked;
       this.app.player.saveSettings();
     });
@@ -630,6 +644,15 @@ class SettingsPage {
     const usersTab = document.getElementById("users-tab");
     if (usersTab) usersTab.style.display = isAdmin ? "block" : "none";
 
+    // Ensure at least one tab/content is active so the panel can render.
+    if (
+      !document.querySelector(
+        "#page-settings .settings-main > .tab-content.active",
+      )
+    ) {
+      this.switchTab("sources");
+    }
+
     // If current active tab is admin-only and user is not admin, redirect to player
     const activeTab = document.querySelector(
       "#page-settings .settings-main > .tab-content.active",
@@ -642,8 +665,10 @@ class SettingsPage {
       this.switchTab("player");
     }
 
-    // Load sources when page is shown
-    await this.app.sourceManager.loadSources();
+    // Load sources when page is shown, but do not block rendering on a slow request.
+    this.app.sourceManager.loadSources().catch((err) => {
+      console.error("Error loading settings sources:", err);
+    });
 
     // Refresh ALL player settings from server
     if (this.app.player?.settings) {

@@ -30,6 +30,28 @@
   </head>
 
   <body>
+    <div
+      id="app-startup-overlay"
+      class="app-startup-overlay"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <div class="app-startup-dialog" role="status">
+        <div class="app-startup-brand">StreamNet TV</div>
+        <div class="app-startup-title">
+          Deine Entertainment Zentrale wird geladen
+        </div>
+        <div class="app-startup-message" id="app-startup-message">
+          Initialisiere Anwendung
+        </div>
+        <div class="app-startup-meta">
+          <span id="app-startup-percent">0%</span>
+        </div>
+        <div class="app-startup-progress" aria-hidden="true">
+          <span></span>
+        </div>
+      </div>
+    </div>
     <div id="app">
       <!-- Navigation -->
       <nav class="navbar">
@@ -161,7 +183,12 @@
         <div id="page-live" class="page">
           <div class="home-layout">
             <!-- Channel Toggle Button (Mobile) -->
-            <button class="channel-toggle-btn" id="channel-toggle-btn">
+            <button
+              class="channel-toggle-btn"
+              id="channel-toggle-btn"
+              title="Open groups sidebar (G)"
+              aria-label="Open groups sidebar"
+            >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
@@ -172,7 +199,7 @@
                   d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"
                 />
               </svg>
-              <span>Channels</span>
+              <span>Groups</span>
             </button>
 
             <!-- Overlay for drawer -->
@@ -1865,6 +1892,7 @@
     <script src="/js/components/ChannelList.js?v=3"></script>
     <script src="/js/components/SourceManager.js?v=2"></script>
     <script src="/js/components/EpgGuide.js?v=2"></script>
+    <script src="/js/components/CustomDropdown.js?v=1"></script>
     <script src="/js/pages/HomePage.js?v=2"></script>
     <script src="/js/pages/LivePage.js?v=2"></script>
     <script src="/js/pages/Guide.js?v=2"></script>

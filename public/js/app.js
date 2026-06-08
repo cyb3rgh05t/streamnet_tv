@@ -23,12 +23,84 @@ class App {
     this.pages.settings = new SettingsPage(this);
     this.pages.watch = new WatchPage(this);
 
+    this.startupOverlay = document.getElementById("app-startup-overlay");
+    this.startupMessage = document.getElementById("app-startup-message");
+    this.startupPercent = document.getElementById("app-startup-percent");
+    this.startupProgressBar =
+      this.startupOverlay?.querySelector?.(".app-startup-progress > span") ||
+      null;
+    this.startupHidden = false;
+
     this.init();
   }
 
+  setStartupMessage(message) {
+    if (!this.startupMessage) return;
+    this.startupMessage.textContent =
+      message || "Deine Entertainment Zentrale wird geladen";
+  }
+
+  setStartupProgress(percent, message) {
+    const safePercent = Math.max(0, Math.min(100, Number(percent) || 0));
+    if (typeof message === "string" && message) {
+      this.setStartupMessage(message);
+    }
+    if (this.startupPercent) {
+      this.startupPercent.textContent = `${Math.round(safePercent)}%`;
+    }
+    if (this.startupProgressBar) {
+      this.startupProgressBar.style.width = `${safePercent}%`;
+    }
+  }
+
+  hideStartupOverlay() {
+    if (!this.startupOverlay || this.startupHidden) return;
+    this.startupHidden = true;
+    this.startupOverlay.classList.add("hidden");
+    setTimeout(() => {
+      this.startupOverlay?.remove();
+    }, 260);
+  }
+
+  waitForDashboardReady(timeoutMs = 12000) {
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        window.removeEventListener("streamnet:dashboard-ready", onReady);
+        clearTimeout(timer);
+        resolve();
+      };
+
+      const onReady = () => finish();
+      const timer = setTimeout(finish, timeoutMs);
+
+      window.addEventListener("streamnet:dashboard-ready", onReady, {
+        once: true,
+      });
+    });
+  }
+
   async init() {
+    const onDashboardProgress = (event) => {
+      const message = event?.detail?.message;
+      const percent = event?.detail?.percent;
+      if (Number.isFinite(percent)) {
+        this.setStartupProgress(percent, message);
+      } else if (message) {
+        this.setStartupMessage(message);
+      }
+    };
+    window.addEventListener(
+      "streamnet:dashboard-progress",
+      onDashboardProgress,
+    );
+
     // Check authentication first
+    this.setStartupProgress(8, "Authentifizierung wird geprüft...");
     await this.checkAuth();
+    this.setStartupProgress(18, "Authentifizierung erfolgreich");
 
     window.I18n?.init?.();
 
@@ -115,22 +187,60 @@ class App {
     const channelSidebar = document.getElementById("channel-sidebar");
     const channelOverlay = document.getElementById("channel-sidebar-overlay");
 
-    if (channelToggleBtn && channelSidebar && channelOverlay) {
-      const toggleChannelDrawer = () => {
-        channelSidebar.classList.toggle("active");
-        channelOverlay.classList.toggle("active");
-      };
+    const isMobileSidebarViewport = () => window.innerWidth <= 768;
+    const homeLayout = document.querySelector(".home-layout");
 
-      channelToggleBtn.addEventListener("click", toggleChannelDrawer);
-      channelOverlay.addEventListener("click", toggleChannelDrawer);
+    const setChannelDrawerOpen = (open) => {
+      if (!channelSidebar || !channelOverlay) return;
+      channelSidebar.classList.toggle("active", Boolean(open));
+      channelOverlay.classList.toggle("active", Boolean(open));
+      channelToggleBtn?.classList.toggle("is-open", Boolean(open));
+      channelToggleBtn?.setAttribute("aria-expanded", open ? "true" : "false");
+    };
+
+    const setSidebarCollapsed = (collapsed) => {
+      channelSidebar?.classList.toggle("collapsed", Boolean(collapsed));
+      homeLayout?.classList.toggle("sidebar-collapsed", Boolean(collapsed));
+      localStorage.setItem("sidebarCollapsed", collapsed ? "true" : "false");
+
+      if (channelToggleBtn) {
+        const label = channelToggleBtn.querySelector("span");
+        if (label) {
+          label.textContent = collapsed ? "Groups" : "Hide Groups";
+        }
+        channelToggleBtn.title = collapsed
+          ? "Open groups sidebar (G)"
+          : "Close groups sidebar (G)";
+        channelToggleBtn.setAttribute("aria-label", channelToggleBtn.title);
+        channelToggleBtn.setAttribute(
+          "aria-expanded",
+          collapsed ? "false" : "true",
+        );
+      }
+    };
+
+    const toggleLiveSidebar = () => {
+      if (isMobileSidebarViewport()) {
+        setChannelDrawerOpen(!channelSidebar?.classList.contains("active"));
+        return;
+      }
+
+      const isCollapsed = channelSidebar?.classList.contains("collapsed");
+      setSidebarCollapsed(!isCollapsed);
+    };
+
+    if (channelToggleBtn && channelSidebar && channelOverlay) {
+      channelToggleBtn.addEventListener("click", toggleLiveSidebar);
+      channelOverlay.addEventListener("click", () =>
+        setChannelDrawerOpen(false),
+      );
 
       // Close drawer when a channel is selected
       channelSidebar.addEventListener("click", (e) => {
-        if (e.target.closest(".channel-item")) {
+        if (e.target.closest(".channel-item") && isMobileSidebarViewport()) {
           // Small delay to let the channel selection happen
           setTimeout(() => {
-            channelSidebar.classList.remove("active");
-            channelOverlay.classList.remove("active");
+            setChannelDrawerOpen(false);
           }, 300);
         }
       });
@@ -139,25 +249,61 @@ class App {
     // Desktop sidebar collapse toggle
     const sidebarCollapseBtn = document.getElementById("sidebar-collapse-btn");
     const sidebarExpandBtn = document.getElementById("sidebar-expand-btn");
-    const homeLayout = document.querySelector(".home-layout");
 
-    const toggleSidebarCollapse = () => {
-      channelSidebar?.classList.toggle("collapsed");
-      homeLayout?.classList.toggle("sidebar-collapsed");
-
-      // Persist preference
+    sidebarCollapseBtn?.addEventListener("click", () => {
       const isCollapsed = channelSidebar?.classList.contains("collapsed");
-      localStorage.setItem("sidebarCollapsed", isCollapsed ? "true" : "false");
-    };
-
-    sidebarCollapseBtn?.addEventListener("click", toggleSidebarCollapse);
-    sidebarExpandBtn?.addEventListener("click", toggleSidebarCollapse);
+      setSidebarCollapsed(!isCollapsed);
+    });
+    sidebarExpandBtn?.addEventListener("click", () => {
+      const isCollapsed = channelSidebar?.classList.contains("collapsed");
+      setSidebarCollapsed(!isCollapsed);
+    });
 
     // Restore sidebar state from localStorage
-    if (localStorage.getItem("sidebarCollapsed") === "true") {
-      channelSidebar?.classList.add("collapsed");
-      homeLayout?.classList.add("sidebar-collapsed");
-    }
+    const sidebarWasCollapsed =
+      localStorage.getItem("sidebarCollapsed") === "true";
+    setSidebarCollapsed(sidebarWasCollapsed);
+
+    window.addEventListener("resize", () => {
+      if (!isMobileSidebarViewport()) {
+        setChannelDrawerOpen(false);
+      }
+    });
+
+    document.addEventListener("keydown", (e) => {
+      const target = e.target;
+      const isTypingField =
+        target?.closest?.("input, textarea, select") ||
+        target?.isContentEditable;
+      if (isTypingField) return;
+
+      if (this.currentPage !== "live") return;
+
+      if (
+        e.key.toLowerCase() === "g" &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey
+      ) {
+        e.preventDefault();
+        toggleLiveSidebar();
+        return;
+      }
+
+      if (e.key === "Escape") {
+        if (
+          isMobileSidebarViewport() &&
+          channelSidebar?.classList.contains("active")
+        ) {
+          setChannelDrawerOpen(false);
+        } else if (
+          !isMobileSidebarViewport() &&
+          !channelSidebar?.classList.contains("collapsed")
+        ) {
+          setSidebarCollapsed(true);
+        }
+      }
+    });
 
     // Navigation handling
     const collapseOnNavPages = new Set(["live", "movies", "series", "guide"]);
@@ -223,6 +369,7 @@ class App {
     this.setupHoverMarquee();
 
     // Initialize home page first (it's needed for channel list)
+    this.setStartupProgress(32, "Dashboard wird vorbereitet...");
     await this.pages.home.init();
 
     // Preload EPG data in background (non-blocking)
@@ -234,7 +381,28 @@ class App {
     // Navigate to the page from URL hash, or default to home
     const hash = window.location.hash.slice(1); // Remove #
     const initialPage = hash && this.pages[hash] ? hash : "home";
+    this.setStartupProgress(
+      initialPage === "home" ? 48 : 72,
+      initialPage === "home"
+        ? "Dashboard wird geladen..."
+        : "Benutzeroberflaeche wird geladen...",
+    );
     this.navigateTo(initialPage, true); // true = replace history (don't add)
+
+    if (initialPage === "home") {
+      await this.waitForDashboardReady();
+      this.setStartupProgress(100, "Dashboard ist bereit");
+    } else {
+      this.setStartupProgress(92, "Startseite wird finalisiert...");
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      this.setStartupProgress(100, "Fertig");
+    }
+
+    setTimeout(() => this.hideStartupOverlay(), 120);
+    window.removeEventListener(
+      "streamnet:dashboard-progress",
+      onDashboardProgress,
+    );
 
     console.log("StreamNet TV initialized");
   }

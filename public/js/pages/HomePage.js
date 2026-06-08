@@ -30,6 +30,24 @@ class HomePage {
     return window.I18n?.t ? window.I18n.t(key, params) : key;
   }
 
+  getTimeBasedKicker() {
+    const hour = new Date().getHours();
+
+    if (hour >= 5 && hour < 11) return this.tr("home.kickerMorning");
+    if (hour >= 11 && hour < 14) return this.tr("home.kickerNoon");
+    if (hour >= 14 && hour < 18) return this.tr("home.kickerAfternoon");
+    if (hour >= 18 && hour < 23) return this.tr("home.kickerEvening");
+    return this.tr("home.kickerNight");
+  }
+
+  reportStartupProgress(message, percent) {
+    window.dispatchEvent(
+      new CustomEvent("streamnet:dashboard-progress", {
+        detail: { message, percent },
+      }),
+    );
+  }
+
   renderLayout() {
     const pageHome = document.getElementById("page-home");
     if (!pageHome) return;
@@ -38,7 +56,7 @@ class HomePage {
             <div class="dashboard-content" id="home-content">
                 <section class="dashboard-hero">
                     <div class="dashboard-hero-main">
-              <div class="dashboard-kicker">${this.tr("home.kicker")}</div>
+              <div class="dashboard-kicker">${this.getTimeBasedKicker()}</div>
               <h1 class="dashboard-title">${this.tr("home.title")}</h1>
               <p class="dashboard-subtitle" id="dashboard-subtitle">${this.tr("home.subtitleLoading")}</p>
                         <div class="dashboard-actions">
@@ -260,6 +278,8 @@ class HomePage {
     this.isLoading = true;
 
     try {
+      this.reportStartupProgress("Dashboard-Inhalte werden geladen...", 58);
+
       const historyPromise = window.API.request(
         "GET",
         "/history?limit=12",
@@ -301,8 +321,13 @@ class HomePage {
         movies: movieCount,
         series: seriesCount,
       });
+
+      this.reportStartupProgress("Dashboard wird finalisiert...", 96);
+
+      window.dispatchEvent(new CustomEvent("streamnet:dashboard-ready"));
     } catch (err) {
       console.error("[Dashboard] Error loading data:", err);
+      window.dispatchEvent(new CustomEvent("streamnet:dashboard-ready"));
     } finally {
       this.isLoading = false;
     }
@@ -329,7 +354,9 @@ class HomePage {
       // Ensure channel list is loaded to resolve channel details
       const channelList = this.app.channelList;
       if (!channelList.channels || channelList.channels.length === 0) {
+        this.reportStartupProgress("Playlist wird geladen...", 72);
         await channelList.loadSources();
+        this.reportStartupProgress("Senderliste wird geladen...", 84);
         await channelList.loadChannels();
       }
 
