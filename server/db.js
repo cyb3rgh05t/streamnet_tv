@@ -483,6 +483,43 @@ const settings = {
     await saveDb(db);
     return db.settings;
   },
+
+  async getSyncIntervalConfig() {
+    const db = await loadDb();
+    const defaults = getDefaultSettings();
+    const globalRaw =
+      db.settings?.epgRefreshInterval ?? defaults.epgRefreshInterval ?? "24";
+    const globalInterval = parseInt(globalRaw, 10);
+
+    const byUser = {};
+    const userSettings = db.userSettings || {};
+    Object.entries(userSettings).forEach(([userId, userCfg]) => {
+      if (
+        userCfg &&
+        Object.prototype.hasOwnProperty.call(userCfg, "epgRefreshInterval")
+      ) {
+        const parsed = parseInt(userCfg.epgRefreshInterval, 10);
+        if (Number.isFinite(parsed)) {
+          byUser[String(userId)] = parsed;
+        }
+      }
+    });
+
+    return {
+      global: Number.isFinite(globalInterval) ? globalInterval : 24,
+      byUser,
+    };
+  },
+
+  async getEffectiveSyncIntervalHours() {
+    const config = await this.getSyncIntervalConfig();
+    const candidates = [config.global, ...Object.values(config.byUser)]
+      .map((n) => parseInt(n, 10))
+      .filter((n) => Number.isFinite(n) && n > 0);
+
+    if (!candidates.length) return 0;
+    return Math.min(...candidates);
+  },
 };
 
 // User operations

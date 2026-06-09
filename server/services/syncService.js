@@ -26,9 +26,9 @@ class SyncService {
    * Should be called once on server startup after initial sync
    */
   async startSyncTimer() {
-    // Get interval from settings
-    const currentSettings = await settings.get();
-    const intervalHours = parseInt(currentSettings.epgRefreshInterval) || 24;
+    // Use effective interval from global + per-user settings.
+    const intervalHours = await settings.getEffectiveSyncIntervalHours();
+    const intervalConfig = await settings.getSyncIntervalConfig();
 
     // If interval is 0, don't start timer (manual only mode)
     if (intervalHours <= 0) {
@@ -55,6 +55,11 @@ class SyncService {
     console.log(
       `[Sync] Starting server-side sync timer: every ${intervalHours} hours`,
     );
+    if (Object.keys(intervalConfig.byUser || {}).length) {
+      console.log(
+        `[Sync] Interval config -> global: ${intervalConfig.global}h, user overrides: ${JSON.stringify(intervalConfig.byUser)}`,
+      );
+    }
     console.log(
       `[Sync] Next scheduled sync at: ${nextSyncTime.toLocaleString()}`,
     );
@@ -84,7 +89,10 @@ class SyncService {
    * Restart the sync timer with updated settings
    * Called when sync interval setting changes
    */
-  async restartSyncTimer() {
+  async restartSyncTimer(changedByUserId = null) {
+    if (changedByUserId !== null && changedByUserId !== undefined) {
+      console.log(`[Sync] Restart requested by user ${changedByUserId}`);
+    }
     await this.startSyncTimer();
   }
 

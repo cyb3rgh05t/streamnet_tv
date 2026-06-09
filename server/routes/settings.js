@@ -31,7 +31,7 @@ router.put("/", async (req, res) => {
 
     // If sync interval changed, restart the server-side sync timer
     if (updates.epgRefreshInterval !== undefined) {
-      syncService.restartSyncTimer().catch(console.error);
+      syncService.restartSyncTimer(req.user.id).catch(console.error);
     }
 
     res.json(updatedSettings);
@@ -48,6 +48,7 @@ router.put("/", async (req, res) => {
 router.delete("/", async (req, res) => {
   try {
     const defaultSettings = await settings.reset(req.user.id);
+    syncService.restartSyncTimer(req.user.id).catch(console.error);
     res.json(defaultSettings);
   } catch (err) {
     console.error("Error resetting settings:", err);
