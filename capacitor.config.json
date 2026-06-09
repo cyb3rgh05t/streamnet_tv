@@ -1,0 +1,9 @@
+{
+  "appId": "tv.streamnet.app",
+  "appName": "StreamNet TV",
+  "webDir": "public",
+  "server": {
+    "url": "https://web.streamnet.live",
+    "cleartext": false
+  }
+}

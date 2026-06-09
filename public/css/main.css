@@ -145,9 +145,30 @@ body {
   color: var(--color-text-primary);
   background: var(--color-bg-primary);
   overflow: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   /* Prevent pull-to-refresh and overscroll bounce on mobile */
   overscroll-behavior: none;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Compact layout for tall portrait displays (e.g. 1080x1750 WebView screens). */
+@media (min-width: 900px) and (max-width: 1280px) and (min-height: 1400px) {
+  :root {
+    --sidebar-width: 280px;
+    --navbar-height: 56px;
+  }
+
+  html,
+  body {
+    font-size: 12px;
+  }
+
+  .dashboard-content,
+  .admin-dashboard-content {
+    max-width: 100%;
+    padding-inline: 16px;
+  }
 }
 
 /* Prevent text selection on touch devices (improves UX) */
