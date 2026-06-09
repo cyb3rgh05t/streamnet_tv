@@ -434,6 +434,24 @@ h4 {
   padding: 0;
   z-index: 110;
 }
+@media (min-width: 641px) {
+  .mobile-menu-toggle {
+    display: flex;
+    align-self: flex-end;
+    margin: 0 12px 12px auto;
+    width: 32px;
+    height: 32px;
+    padding: 6px;
+    border: 1px solid rgba(var(--color-accent-rgb), 0.32);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .mobile-menu-toggle:hover {
+    border-color: rgba(var(--color-accent-rgb), 0.58);
+    background: rgba(var(--color-accent-rgb), 0.12);
+  }
+}
 
 .mobile-menu-toggle span {
   width: 100%;

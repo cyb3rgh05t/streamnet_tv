@@ -152,6 +152,20 @@ class App {
     const prefersCollapsedNavKey = "streamnet_nav_collapsed";
     const isDesktopOrTablet = () => window.innerWidth > 640;
 
+    const syncNavToggleButton = () => {
+      if (!mobileMenuToggle || !navbar) return;
+      const collapsed = navbar.classList.contains("collapsed");
+      if (isDesktopOrTablet()) {
+        mobileMenuToggle.classList.toggle("active", collapsed);
+        mobileMenuToggle.setAttribute(
+          "aria-label",
+          collapsed ? "Sidebar öffnen" : "Sidebar schließen",
+        );
+      } else {
+        mobileMenuToggle.setAttribute("aria-label", "Toggle menu");
+      }
+    };
+
     const setNavbarCollapsed = (collapsed, persist = true) => {
       if (!navbar) return;
 
@@ -172,6 +186,8 @@ class App {
           collapsed ? "true" : "false",
         );
       }
+
+      syncNavToggleButton();
     };
 
     if (window.innerWidth > 640) {
@@ -179,6 +195,8 @@ class App {
         localStorage.getItem(prefersCollapsedNavKey) === "true",
         false,
       );
+    } else {
+      syncNavToggleButton();
     }
 
     navbar?.addEventListener("mouseenter", () => {
@@ -197,11 +215,19 @@ class App {
         setNavbarCollapsed(stored, false);
       } else {
         navbar?.classList.remove("collapsed", "hover-open");
+        syncNavToggleButton();
       }
     });
 
     if (mobileMenuToggle && navbarMenu) {
       mobileMenuToggle.addEventListener("click", () => {
+        if (isDesktopOrTablet()) {
+          const isCollapsed = navbar?.classList.contains("collapsed");
+          setNavbarCollapsed(!isCollapsed);
+          mobileMenuToggle.classList.toggle("active", !isCollapsed);
+          return;
+        }
+
         mobileMenuToggle.classList.toggle("active");
         navbarMenu.classList.toggle("active");
       });
