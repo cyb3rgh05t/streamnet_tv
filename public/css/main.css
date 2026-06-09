@@ -7266,7 +7266,7 @@ kbd {
 
 .admin-system-ring-inner span {
   font-size: 0.74rem;
-  color: var(--color-text-secondary);
+  color: var(--color-accent);
   overflow-wrap: anywhere;
 }
 
@@ -7916,6 +7916,66 @@ kbd {
   }
 }
 
+@media (max-width: 1400px) {
+  .admin-dashboard-content {
+    padding: 32px 24px 36px;
+  }
+
+  .admin-system-ring-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .admin-system-ring {
+    width: 188px;
+    height: 188px;
+  }
+
+  .admin-watch-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+
+  .admin-trend-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1180px) {
+  .admin-dashboard-content {
+    padding: 28px 20px 32px;
+  }
+
+  .admin-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-stats-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .admin-system-ring-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .admin-system-ring {
+    width: 176px;
+    height: 176px;
+  }
+
+  .admin-history-daily-chart {
+    padding: 14px 10px 12px 38px;
+  }
+
+  .admin-history-line {
+    inset: 14px 10px 42px 38px;
+    width: calc(100% - 48px);
+  }
+
+  .admin-bars {
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+  }
+}
+
 .admin-stat-panel {
   border-radius: 16px;
   border: 1px solid rgba(var(--color-accent-rgb), 0.22);
@@ -8067,6 +8127,88 @@ kbd {
 
   .admin-trend-grid {
     grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-dashboard-content {
+    padding: 16px 12px 22px;
+  }
+
+  .admin-kpi-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .admin-kpi-card {
+    min-height: 112px;
+    padding: 14px;
+  }
+
+  .admin-system-ring-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .admin-system-ring {
+    width: 164px;
+    height: 164px;
+  }
+
+  .admin-system-ring-inner strong {
+    font-size: 1.35rem;
+  }
+
+  .admin-history-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .admin-history-daily-chart {
+    min-height: 196px;
+    padding: 12px 8px 10px 30px;
+  }
+
+  .admin-history-line {
+    inset: 12px 8px 36px 30px;
+    width: calc(100% - 38px);
+    height: calc(100% - 48px);
+  }
+
+  .admin-history-daily-bars {
+    min-height: 164px;
+    gap: 6px;
+  }
+
+  .admin-watch-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .admin-watch-cell {
+    min-height: 112px;
+  }
+
+  .admin-watch-value {
+    font-size: 0.7rem;
+  }
+
+  .admin-watch-hour {
+    font-size: 0.56rem;
+  }
+
+  .admin-trend-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .admin-trend-cell {
+    min-height: 76px;
+  }
+
+  .admin-bars {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    min-height: 176px;
   }
 }
 
