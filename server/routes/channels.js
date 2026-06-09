@@ -435,19 +435,23 @@ router.get("/recent/stats", async (req, res) => {
     const rows = db
       .prepare(
         `
-            SELECT p.type, COUNT(*) AS total
-            FROM playlist_items p
-            WHERE p.type IN ('movie', 'series')
-              AND p.is_hidden = 0
-              AND p.source_id IN (${placeholders})
-              AND NOT EXISTS (
-                  SELECT 1 FROM categories c
-                  WHERE c.source_id = p.source_id
-                    AND c.category_id = p.category_id
-                    AND c.type = p.type
-                    AND c.is_hidden = 1
-              )
-            GROUP BY p.type
+            SELECT x.type, COUNT(*) AS total
+            FROM (
+              SELECT p.source_id, p.type, p.item_id
+              FROM playlist_items p
+              WHERE p.type IN ('movie', 'series')
+                AND p.is_hidden = 0
+                AND p.source_id IN (${placeholders})
+                AND NOT EXISTS (
+                    SELECT 1 FROM categories c
+                    WHERE c.source_id = p.source_id
+                      AND c.category_id = p.category_id
+                      AND c.type = p.type
+                      AND c.is_hidden = 1
+                )
+              GROUP BY p.source_id, p.type, p.item_id
+            ) x
+            GROUP BY x.type
         `,
       )
       .all(...ownedSourceIds);
@@ -485,22 +489,36 @@ router.get("/recent", async (req, res) => {
     const recentItems = db
       .prepare(
         `
-            SELECT * FROM playlist_items p
-            WHERE p.type = ? 
+            SELECT p.*
+            FROM playlist_items p
+            INNER JOIN (
+              SELECT source_id, type, item_id, MAX(COALESCE(added_at, 0)) AS latest_added_at
+              FROM playlist_items
+              WHERE type = ?
+                AND is_hidden = 0
+                AND source_id IN (${placeholders})
+              GROUP BY source_id, type, item_id
+            ) d
+              ON d.source_id = p.source_id
+             AND d.type = p.type
+             AND d.item_id = p.item_id
+             AND COALESCE(p.added_at, 0) = d.latest_added_at
+            WHERE p.type = ?
               AND p.is_hidden = 0
               AND p.source_id IN (${placeholders})
               AND NOT EXISTS (
-                  SELECT 1 FROM categories c 
-                  WHERE c.source_id = p.source_id 
-                    AND c.category_id = p.category_id 
-                    AND c.type = p.type 
+                  SELECT 1 FROM categories c
+                  WHERE c.source_id = p.source_id
+                    AND c.category_id = p.category_id
+                    AND c.type = p.type
                     AND c.is_hidden = 1
               )
-            ORDER BY p.added_at DESC
+            GROUP BY p.source_id, p.type, p.item_id
+            ORDER BY COALESCE(p.added_at, 0) DESC
             LIMIT ?
         `,
       )
-      .all(type, ...ownedSourceIds, parseInt(limit));
+      .all(type, ...ownedSourceIds, type, ...ownedSourceIds, parseInt(limit));
 
     // Parse JSON data for each item
     const formatted = recentItems.map((item) => ({
