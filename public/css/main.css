@@ -7209,6 +7209,7 @@ kbd {
   position: relative;
   display: grid;
   place-items: center;
+  max-width: 100%;
   width: 206px;
   height: 206px;
 }
@@ -7973,6 +7974,18 @@ kbd {
 
   .admin-bars {
     grid-template-columns: repeat(10, minmax(0, 1fr));
+  }
+}
+
+@media (max-aspect-ratio: 4/3) and (max-width: 1300px) {
+  .admin-system-ring-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .admin-system-ring {
+    width: 168px;
+    height: 168px;
   }
 }
 
