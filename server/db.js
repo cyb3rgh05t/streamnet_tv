@@ -111,6 +111,10 @@ function getUserAgent(settings) {
 let writeQueue = Promise.resolve();
 const tmpPath = dbPath + ".tmp";
 
+function isTransientRenameError(err) {
+  return ["EPERM", "EACCES", "EBUSY"].includes(err?.code);
+}
+
 async function saveDb(data) {
   // Queue this write operation - each write waits for the previous one
   writeQueue = writeQueue
@@ -120,7 +124,22 @@ async function saveDb(data) {
         // Atomic write: write to temp file, then rename
         // Rename is atomic on most filesystems, preventing corruption on crash
         await fs.writeFile(tmpPath, jsonString);
-        await fs.rename(tmpPath, dbPath);
+        try {
+          await fs.rename(tmpPath, dbPath);
+        } catch (renameErr) {
+          // Windows can transiently lock the destination (AV/indexer/editor).
+          // Fallback to direct overwrite to avoid losing settings updates.
+          if (!isTransientRenameError(renameErr)) {
+            throw renameErr;
+          }
+
+          await fs.writeFile(dbPath, jsonString);
+          try {
+            await fs.unlink(tmpPath);
+          } catch {
+            /* ignore */
+          }
+        }
       } catch (err) {
         console.error("Error writing database:", err);
         // Clean up temp file if it exists
@@ -141,11 +160,17 @@ async function saveDb(data) {
 
 // Source CRUD operations
 const sources = {
+  isGlobalAdminSource(source) {
+    return source?.is_admin_managed_global === true;
+  },
+
   async getAll(userId = null) {
     const db = await loadDb();
     if (userId !== null && userId !== undefined) {
       return db.sources.filter(
-        (s) => parseInt(s.owner_user_id) === parseInt(userId),
+        (s) =>
+          parseInt(s.owner_user_id) === parseInt(userId) ||
+          this.isGlobalAdminSource(s),
       );
     }
     return db.sources;
@@ -158,7 +183,8 @@ const sources = {
     if (
       userId !== null &&
       userId !== undefined &&
-      parseInt(source.owner_user_id) !== parseInt(userId)
+      parseInt(source.owner_user_id) !== parseInt(userId) &&
+      !this.isGlobalAdminSource(source)
     ) {
       return null;
     }
@@ -170,7 +196,9 @@ const sources = {
     let filtered = db.sources.filter((s) => s.type === type && s.enabled);
     if (userId !== null && userId !== undefined) {
       filtered = filtered.filter(
-        (s) => parseInt(s.owner_user_id) === parseInt(userId),
+        (s) =>
+          parseInt(s.owner_user_id) === parseInt(userId) ||
+          this.isGlobalAdminSource(s),
       );
     }
     return filtered;

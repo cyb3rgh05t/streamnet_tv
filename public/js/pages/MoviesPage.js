@@ -85,32 +85,6 @@ class MoviesPage {
   }
 
   getDisplaySourceName(source) {
-    const raw = String(source?.url || "").trim();
-    if (raw) {
-      try {
-        const normalized = /^[a-z][a-z\d+.-]*:\/\//i.test(raw)
-          ? raw
-          : `http://${raw}`;
-        const hostname = new URL(normalized).hostname.toLowerCase();
-        if (
-          hostname === "xui.streamnet.live" ||
-          hostname.endsWith(".xui.streamnet.live") ||
-          hostname === "xui.stremnet.live" ||
-          hostname.endsWith(".xui.stremnet.live")
-        ) {
-          return "StreamNet TV";
-        }
-      } catch {
-        if (
-          /(?:^|[\/@.])xui\.(?:streamnet|stremnet)\.live(?::\d+)?(?:\/|$)/i.test(
-            raw,
-          )
-        ) {
-          return "StreamNet TV";
-        }
-      }
-    }
-
     return source?.name || "";
   }
 
@@ -705,7 +679,10 @@ class MoviesPage {
       movie?.runtime,
     );
     const runtimePretty = formatDuration(runtimeMinutes);
-    const sourceName = "StreamNet TV";
+    const sourceId = Number(movie?.sourceId || 0);
+    const sourceName = this.getDisplaySourceName(
+      this.sources.find((s) => Number(s.id) === sourceId),
+    );
     const country = joinList(first(tmdb?.countries, movie?.country));
     const budget = toInt(tmdb?.budget);
     const revenue = toInt(tmdb?.revenue);

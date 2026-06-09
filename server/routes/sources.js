@@ -6,15 +6,46 @@ const { getDb } = require("../db/sqlite");
 const xtreamApi = require("../services/xtreamApi");
 const syncService = require("../services/syncService");
 const m3uParser = require("../services/m3uParser");
+const XTREAM_AUTH_ENABLED =
+  String(process.env.XTREAM_AUTH_ENABLED || "").toLowerCase() === "true";
 
 router.use(requireAuth);
+
+function isAdmin(user) {
+  return user?.role === "admin";
+}
+
+function isAdminManagedGlobalSource(source) {
+  return source?.is_admin_managed_global === true;
+}
+
+function isManagedXtreamSource(source) {
+  return source?.is_managed_xtream_auth === true;
+}
+
+function applyViewerXtreamPolicy(allSources, user) {
+  if (!XTREAM_AUTH_ENABLED || isAdmin(user)) {
+    return allSources;
+  }
+
+  // In Xtream auth viewer mode, hide the global admin Xtream source to avoid
+  // duplicate provider cards. Keep viewer-owned sources (managed + own).
+  return allSources.filter((source) => {
+    const type = String(source?.type || "").toLowerCase();
+    if (type === "xtream" && isAdminManagedGlobalSource(source)) {
+      return false;
+    }
+    return true;
+  });
+}
 
 // Get all sources
 router.get("/", async (req, res) => {
   try {
     const allSources = await sources.getAll(req.user.id);
+    const visibleSources = applyViewerXtreamPolicy(allSources, req.user);
     // Don't expose passwords in list view
-    const sanitized = allSources.map((s) => ({
+    const sanitized = visibleSources.map((s) => ({
       ...s,
       password: s.password ? "••••••••" : null,
     }));
@@ -42,7 +73,8 @@ router.get("/status", async (req, res) => {
 router.get("/type/:type", async (req, res) => {
   try {
     const typeSources = await sources.getByType(req.params.type, req.user.id);
-    res.json(typeSources);
+    const visibleSources = applyViewerXtreamPolicy(typeSources, req.user);
+    res.json(visibleSources);
   } catch (err) {
     console.error("Error getting sources by type:", err);
     res.status(500).json({ error: "Failed to get sources" });
@@ -56,6 +88,14 @@ router.get("/:id", async (req, res) => {
     if (!source) {
       return res.status(404).json({ error: "Source not found" });
     }
+
+    if (!isAdmin(req.user) && isAdminManagedGlobalSource(source)) {
+      return res.json({
+        ...source,
+        password: source.password ? "••••••••" : null,
+      });
+    }
+
     res.json(source);
   } catch (err) {
     console.error("Error getting source:", err);
@@ -78,9 +118,17 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Invalid source type" });
     }
 
+    const adminMode = isAdmin(req.user);
     const source = await sources.create(
-      { type, name, url, username, password },
-      req.user.id,
+      {
+        type,
+        name,
+        url,
+        username,
+        password,
+        is_admin_managed_global: adminMode,
+      },
+      adminMode ? null : req.user.id,
     );
     // Trigger Sync
     syncService.syncSource(source.id).catch(console.error);
@@ -99,7 +147,20 @@ router.put("/:id", async (req, res) => {
       return res.status(404).json({ error: "Source not found" });
     }
 
+    if (!isAdmin(req.user) && isAdminManagedGlobalSource(existing)) {
+      return res.status(403).json({
+        error: "Global admin source cannot be modified by viewer accounts",
+      });
+    }
+
+    if (!isAdmin(req.user) && isManagedXtreamSource(existing)) {
+      return res.status(403).json({
+        error: "Managed Xtream source cannot be modified by viewer accounts",
+      });
+    }
+
     const { name, url, username, password } = req.body;
+    const ownerScope = isAdmin(req.user) ? null : req.user.id;
     const updated = await sources.update(
       req.params.id,
       {
@@ -108,7 +169,7 @@ router.put("/:id", async (req, res) => {
         username: username !== undefined ? username : existing.username,
         password: password !== undefined ? password : existing.password,
       },
-      req.user.id,
+      ownerScope,
     );
     // Trigger Sync (if critical fields changed? safely just trigger it)
     syncService.syncSource(parseInt(req.params.id)).catch(console.error);
@@ -126,6 +187,18 @@ router.delete("/:id", async (req, res) => {
     const existing = await sources.getById(sourceId, req.user.id);
     if (!existing) {
       return res.status(404).json({ error: "Source not found" });
+    }
+
+    if (!isAdmin(req.user) && isAdminManagedGlobalSource(existing)) {
+      return res.status(403).json({
+        error: "Global admin source cannot be deleted by viewer accounts",
+      });
+    }
+
+    if (!isAdmin(req.user) && isManagedXtreamSource(existing)) {
+      return res.status(403).json({
+        error: "Managed Xtream source cannot be deleted by viewer accounts",
+      });
     }
 
     // Cascade delete: Clean up SQLite data for this source
@@ -153,7 +226,7 @@ router.delete("/:id", async (req, res) => {
     );
 
     // Delete source config and related hidden items (favorites handled by db.js)
-    await sources.delete(sourceId, req.user.id);
+    await sources.delete(sourceId, isAdmin(req.user) ? null : req.user.id);
 
     res.json({ success: true });
   } catch (err) {
@@ -165,7 +238,27 @@ router.delete("/:id", async (req, res) => {
 // Toggle source enabled/disabled
 router.post("/:id/toggle", async (req, res) => {
   try {
-    const updated = await sources.toggleEnabled(req.params.id, req.user.id);
+    const existing = await sources.getById(req.params.id, req.user.id);
+    if (!existing) {
+      return res.status(404).json({ error: "Source not found" });
+    }
+
+    if (!isAdmin(req.user) && isAdminManagedGlobalSource(existing)) {
+      return res.status(403).json({
+        error: "Global admin source cannot be disabled by viewer accounts",
+      });
+    }
+
+    if (!isAdmin(req.user) && isManagedXtreamSource(existing)) {
+      return res.status(403).json({
+        error: "Managed Xtream source cannot be disabled by viewer accounts",
+      });
+    }
+
+    const updated = await sources.toggleEnabled(
+      req.params.id,
+      isAdmin(req.user) ? null : req.user.id,
+    );
     if (!updated) {
       return res.status(404).json({ error: "Source not found" });
     }
@@ -269,12 +362,10 @@ router.post("/estimate", async (req, res) => {
     });
   } catch (err) {
     console.error("Error estimating M3U size:", err);
-    res
-      .status(500)
-      .json({
-        error: "Failed to estimate playlist size",
-        message: err.message,
-      });
+    res.status(500).json({
+      error: "Failed to estimate playlist size",
+      message: err.message,
+    });
   }
 });
 
@@ -306,12 +397,10 @@ router.get("/:id/estimate", async (req, res) => {
     });
   } catch (err) {
     console.error("Error estimating M3U size:", err);
-    res
-      .status(500)
-      .json({
-        error: "Failed to estimate playlist size",
-        message: err.message,
-      });
+    res.status(500).json({
+      error: "Failed to estimate playlist size",
+      message: err.message,
+    });
   }
 });
 

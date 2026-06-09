@@ -263,6 +263,11 @@ const API = {
     update: (id, data) => API.request("PUT", `/auth/users/${id}`, data),
     delete: (id) => API.request("DELETE", `/auth/users/${id}`),
   },
+
+  // Admin dashboard
+  admin: {
+    getStats: () => API.request("GET", "/admin/stats"),
+  },
 };
 
 // Make API available globally

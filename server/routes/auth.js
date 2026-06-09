@@ -9,11 +9,41 @@ const XTREAM_AUTH_ENABLED =
   String(process.env.XTREAM_AUTH_ENABLED || "").toLowerCase() === "true";
 const XTREAM_PORTAL_URL =
   process.env.XTREAM_PORTAL_URL || "https://xui.streamnet.live";
+const XTREAM_MANAGED_USERNAME_PREFIX =
+  process.env.XTREAM_MANAGED_USERNAME_PREFIX ?? "xtream_";
 
 function getXtreamManagedUsername(username) {
-  return `xtream_${String(username || "")
+  return `${String(XTREAM_MANAGED_USERNAME_PREFIX)}${String(username || "")
     .trim()
     .toLowerCase()}`;
+}
+
+function getPublicXtreamUsername(internalUsername) {
+  const raw = String(internalUsername || "");
+  const prefix = String(XTREAM_MANAGED_USERNAME_PREFIX || "");
+  if (prefix && raw.startsWith(prefix)) {
+    return raw.slice(prefix.length);
+  }
+  return raw;
+}
+
+async function getAdminMasterXtreamSource() {
+  const users = await db.users.getAll();
+  const adminIds = new Set(
+    users.filter((u) => u.role === "admin").map((u) => Number(u.id)),
+  );
+
+  const allSources = await db.sources.getAll();
+  return (
+    allSources.find((s) => {
+      if (String(s?.type || "").toLowerCase() !== "xtream") return false;
+      if (s?.enabled === false) return false;
+      if (s?.is_admin_managed_global === true) return true;
+
+      const ownerId = Number(s?.owner_user_id);
+      return Number.isFinite(ownerId) && adminIds.has(ownerId);
+    }) || null
+  );
 }
 
 // Configure Passport strategies
@@ -65,6 +95,15 @@ router.get(
  */
 router.get("/setup-required", async (req, res) => {
   try {
+    const userCount = await db.users.count();
+    if (userCount === 0) {
+      return res.json({
+        setupRequired: true,
+        xtreamAuthEnabled: XTREAM_AUTH_ENABLED,
+        xtreamPortalUrl: XTREAM_PORTAL_URL,
+      });
+    }
+
     if (XTREAM_AUTH_ENABLED) {
       return res.json({
         setupRequired: false,
@@ -73,7 +112,6 @@ router.get("/setup-required", async (req, res) => {
       });
     }
 
-    const userCount = await db.users.count();
     res.json({ setupRequired: userCount === 0, xtreamAuthEnabled: false });
   } catch (err) {
     console.error("Error in /setup-required:", err);
@@ -87,12 +125,6 @@ router.get("/setup-required", async (req, res) => {
  */
 router.post("/setup", async (req, res) => {
   try {
-    if (XTREAM_AUTH_ENABLED) {
-      return res
-        .status(400)
-        .json({ error: "Setup disabled when XTREAM_AUTH_ENABLED=true" });
-    }
-
     const userCount = await db.users.count();
 
     // Check if setup already done
@@ -181,7 +213,18 @@ router.post("/login", (req, res, next) => {
             .json({ error: "Username and password required" });
         }
 
-        await xtreamApi.authenticate(XTREAM_PORTAL_URL, username, password);
+        const masterSource = await getAdminMasterXtreamSource();
+
+        if (!masterSource) {
+          return res.status(503).json({
+            error:
+              "No admin Xtream source configured. Please create and enable one in the admin account first.",
+          });
+        }
+
+        const portalUrl = masterSource.url;
+
+        await xtreamApi.authenticate(portalUrl, username, password);
 
         const internalUsername = getXtreamManagedUsername(username);
 
@@ -202,12 +245,13 @@ router.post("/login", (req, res, next) => {
 
         const xtreamSourcePayload = {
           type: "xtream",
-          name: `${username} Xtream`,
-          url: XTREAM_PORTAL_URL,
+          name: `${masterSource.name || "Xtream"}`,
+          url: portalUrl,
           username,
           password,
           enabled: true,
           is_managed_xtream_auth: true,
+          managed_master_source_id: masterSource.id,
         };
 
         let source;
@@ -291,10 +335,9 @@ router.get("/me", auth.requireAuth, async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const publicUsername =
-      XTREAM_AUTH_ENABLED && String(user.username).startsWith("xtream_")
-        ? String(user.username).replace(/^xtream_/, "")
-        : user.username;
+    const publicUsername = XTREAM_AUTH_ENABLED
+      ? getPublicXtreamUsername(user.username)
+      : user.username;
 
     res.json({
       id: user.id,

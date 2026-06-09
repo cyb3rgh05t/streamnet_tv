@@ -49,23 +49,50 @@ class SourceManager {
   }
 
   getDisplaySourceName(source) {
-    if (this.isStreamNetProviderUrl(source?.url)) {
-      return "StreamNet TV";
-    }
     return source?.name || "";
+  }
+
+  getCurrentUser() {
+    if (window.app?.currentUser) return window.app.currentUser;
+    if (window.Auth?.getCurrentUser) return window.Auth.getCurrentUser();
+    return null;
+  }
+
+  isXtreamViewerMode() {
+    const currentUser = this.getCurrentUser();
+    return currentUser?.role === "viewer" && currentUser?.authMode === "xtream";
+  }
+
+  applyAddButtonPolicy() {
+    const addXtreamBtn = document.getElementById("add-xtream");
+    const addM3uBtn = document.getElementById("add-m3u");
+    const addEpgBtn = document.getElementById("add-epg");
+    const hideButtons = false;
+
+    [addXtreamBtn, addM3uBtn, addEpgBtn].filter(Boolean).forEach((btn) => {
+      btn.style.display = hideButtons ? "none" : "";
+    });
+  }
+
+  isSourceLockedForViewer(source) {
+    const currentUser = this.getCurrentUser();
+    const isViewer = currentUser?.role === "viewer";
+    return (
+      isViewer &&
+      (source?.is_admin_managed_global === true ||
+        source?.is_managed_xtream_auth === true)
+    );
   }
 
   init() {
     // Add source buttons
-    document
-      .getElementById("add-xtream")
-      .addEventListener("click", () => this.showAddModal("xtream"));
-    document
-      .getElementById("add-m3u")
-      .addEventListener("click", () => this.showAddModal("m3u"));
-    document
-      .getElementById("add-epg")
-      .addEventListener("click", () => this.showAddModal("epg"));
+    const addXtreamBtn = document.getElementById("add-xtream");
+    const addM3uBtn = document.getElementById("add-m3u");
+    const addEpgBtn = document.getElementById("add-epg");
+    addXtreamBtn?.addEventListener("click", () => this.showAddModal("xtream"));
+    addM3uBtn?.addEventListener("click", () => this.showAddModal("m3u"));
+    addEpgBtn?.addEventListener("click", () => this.showAddModal("epg"));
+    this.applyAddButtonPolicy();
 
     // Initialize content browser
     this.initContentBrowser();
@@ -159,6 +186,7 @@ class SourceManager {
    */
   async loadSources() {
     try {
+      this.applyAddButtonPolicy();
       const sources = await API.sources.getAll();
 
       this.renderSourceList(
@@ -193,8 +221,9 @@ class SourceManager {
     const icons = { xtream: Icons.live, m3u: Icons.guide, epg: Icons.series };
 
     container.innerHTML = sources
-      .map(
-        (source) => `
+      .map((source) => {
+        const isLocked = this.isSourceLockedForViewer(source);
+        return `
       <div class="source-item ${source.enabled ? "" : "disabled"}" data-id="${source.id}">
         <span class="source-icon">${icons[type]}</span>
         <div class="source-info">
@@ -204,15 +233,19 @@ class SourceManager {
         <div class="source-actions">
                     <button class="btn btn-sm btn-secondary" data-action="refresh" title="${this.tr("sources.refreshData")}">${Icons.refresh}</button>
                     <button class="btn btn-sm btn-secondary" data-action="test" title="${this.tr("sources.testConnection")}">${Icons.link}</button>
-                    <button class="btn btn-sm btn-secondary" data-action="toggle" title="${source.enabled ? this.tr("common.disable") : this.tr("common.enable")}">
+                    ${
+                      isLocked
+                        ? `<span class="source-lock-badge">Managed</span>`
+                        : `<button class="btn btn-sm btn-secondary" data-action="toggle" title="${source.enabled ? this.tr("common.disable") : this.tr("common.enable")}">
             ${source.enabled ? Icons.check : Icons.circle}
           </button>
                     <button class="btn btn-sm btn-secondary" data-action="edit" title="${this.tr("common.edit")}">${Icons.settings}</button>
-                    <button class="btn btn-sm btn-danger" data-action="delete" title="${this.tr("common.delete")}">${Icons.close}</button>
+                    <button class="btn btn-sm btn-danger" data-action="delete" title="${this.tr("common.delete")}">${Icons.close}</button>`
+                    }
         </div>
       </div>
-    `,
-      )
+    `;
+      })
       .join("");
 
     // Attach event listeners
@@ -225,15 +258,20 @@ class SourceManager {
       item
         .querySelector('[data-action="test"]')
         .addEventListener("click", () => this.testSource(id));
-      item
-        .querySelector('[data-action="toggle"]')
-        .addEventListener("click", () => this.toggleSource(id));
-      item
-        .querySelector('[data-action="edit"]')
-        .addEventListener("click", () => this.showEditModal(id, type));
-      item
-        .querySelector('[data-action="delete"]')
-        .addEventListener("click", () => this.deleteSource(id));
+
+      const toggleBtn = item.querySelector('[data-action="toggle"]');
+      const editBtn = item.querySelector('[data-action="edit"]');
+      const deleteBtn = item.querySelector('[data-action="delete"]');
+
+      if (toggleBtn) {
+        toggleBtn.addEventListener("click", () => this.toggleSource(id));
+      }
+      if (editBtn) {
+        editBtn.addEventListener("click", () => this.showEditModal(id, type));
+      }
+      if (deleteBtn) {
+        deleteBtn.addEventListener("click", () => this.deleteSource(id));
+      }
     });
   }
 
@@ -361,10 +399,6 @@ class SourceManager {
       return;
     }
 
-    if (type === "xtream" && this.isStreamNetProviderUrl(url)) {
-      name = "StreamNet TV";
-    }
-
     try {
       // Check M3U size before creating (large playlist warning)
       if (type === "m3u") {
@@ -419,10 +453,6 @@ class SourceManager {
     if (!name || !url) {
       alert(this.tr("sources.nameUrlRequired"));
       return;
-    }
-
-    if (type === "xtream" && this.isStreamNetProviderUrl(url)) {
-      name = "StreamNet TV";
     }
 
     try {

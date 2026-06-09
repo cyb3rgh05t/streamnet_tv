@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Login - StreamNet TV</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="stylesheet" href="css/main.css" />
+    <link rel="stylesheet" href="css/main.css?v=__CACHE_BUST__" />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
@@ -597,20 +597,20 @@
           const response = await fetch("/api/auth/setup-required");
           const data = await response.json();
 
-          if (data.xtreamAuthEnabled) {
-            isSetupMode = false;
-            isXtreamMode = true;
-            // Hide SSO in Xtream mode
+          if (data.setupRequired) {
+            isSetupMode = true;
+            isXtreamMode = false;
+            // Hide SSO in setup mode
             document.querySelector(".sso-divider").style.display = "none";
             document.getElementById("btn-sso-login").style.display = "none";
             applyLoginModeUI();
             return;
           }
 
-          if (data.setupRequired) {
-            isSetupMode = true;
-            isXtreamMode = false;
-            // Hide SSO in setup mode
+          if (data.xtreamAuthEnabled) {
+            isSetupMode = false;
+            isXtreamMode = true;
+            // Hide SSO in Xtream mode
             document.querySelector(".sso-divider").style.display = "none";
             document.getElementById("btn-sso-login").style.display = "none";
             applyLoginModeUI();

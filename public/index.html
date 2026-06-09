@@ -18,7 +18,7 @@
       content="Stream live TV, movies, and series with EPG support"
     />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="stylesheet" href="css/main.css" />
+    <link rel="stylesheet" href="css/main.css?v=__CACHE_BUST__" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -854,9 +854,9 @@
                     <div id="epg-list" class="source-list"></div>
                   </div>
 
-                  <div class="source-section">
+                  <div class="source-section epg-refresh-section">
                     <h3>EPG Data Settings</h3>
-                    <div class="setting-item">
+                    <div class="setting-item epg-refresh-row">
                       <label for="epg-refresh-interval"
                         >Auto-refresh EPG data every:</label
                       >
@@ -869,11 +869,15 @@
                         <option value="0">Manual only</option>
                       </select>
                     </div>
+                  </div>
+
+                  <div class="source-section epg-last-refresh-section">
+                    <h3 id="epg-last-refresh-title">EPG Last Refresh</h3>
                     <div class="setting-item">
                       <span class="setting-label">Last Refreshed:</span>
                       <span id="epg-last-refreshed" class="hint">Never</span>
                     </div>
-                    <p class="hint">
+                    <p class="hint" id="epg-last-refresh-hint">
                       Use the
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -1885,22 +1889,23 @@
     </div>
 
     <!-- JavaScript -->
-    <script src="/js/icons.js"></script>
-    <script src="/js/api.js?v=2"></script>
-    <script src="/js/i18n.js?v=1"></script>
-    <script src="/js/components/VideoPlayer.js?v=2"></script>
-    <script src="/js/components/ChannelList.js?v=3"></script>
-    <script src="/js/components/SourceManager.js?v=2"></script>
-    <script src="/js/components/EpgGuide.js?v=2"></script>
-    <script src="/js/components/CustomDropdown.js?v=1"></script>
-    <script src="/js/pages/HomePage.js?v=2"></script>
-    <script src="/js/pages/LivePage.js?v=2"></script>
-    <script src="/js/pages/Guide.js?v=2"></script>
-    <script src="/js/pages/MoviesPage.js?v=4"></script>
-    <script src="/js/pages/SeriesPage.js?v=1"></script>
-    <script src="/js/pages/Settings.js?v=2"></script>
-    <script src="/js/pages/WatchPage.js?v=1"></script>
-    <script src="/js/app.js?v=4"></script>
+    <script src="/js/icons.js?v=__CACHE_BUST__"></script>
+    <script src="/js/api.js?v=__CACHE_BUST__"></script>
+    <script src="/js/i18n.js?v=__CACHE_BUST__"></script>
+    <script src="/js/components/VideoPlayer.js?v=__CACHE_BUST__"></script>
+    <script src="/js/components/ChannelList.js?v=__CACHE_BUST__"></script>
+    <script src="/js/components/SourceManager.js?v=__CACHE_BUST__"></script>
+    <script src="/js/components/EpgGuide.js?v=__CACHE_BUST__"></script>
+    <script src="/js/components/CustomDropdown.js?v=__CACHE_BUST__"></script>
+    <script src="/js/pages/HomePage.js?v=__CACHE_BUST__"></script>
+    <script src="/js/pages/LivePage.js?v=__CACHE_BUST__"></script>
+    <script src="/js/pages/Guide.js?v=__CACHE_BUST__"></script>
+    <script src="/js/pages/MoviesPage.js?v=__CACHE_BUST__"></script>
+    <script src="/js/pages/SeriesPage.js?v=__CACHE_BUST__"></script>
+    <script src="/js/pages/Settings.js?v=__CACHE_BUST__"></script>
+    <script src="/js/pages/WatchPage.js?v=__CACHE_BUST__"></script>
+    <script src="/js/pages/AdminDashboardPage.js?v=__CACHE_BUST__"></script>
+    <script src="/js/app.js?v=__CACHE_BUST__"></script>
     <script>
       // Check for SSO token in URL
       (function () {

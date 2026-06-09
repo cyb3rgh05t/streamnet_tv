@@ -7,6 +7,7 @@ class App {
     this.currentPage = "home";
     this.pages = {};
     this.currentUser = null;
+    this.allowedPages = null;
 
     // Initialize components
     this.player = new VideoPlayer();
@@ -22,6 +23,7 @@ class App {
     this.pages.series = new SeriesPage(this);
     this.pages.settings = new SettingsPage(this);
     this.pages.watch = new WatchPage(this);
+    this.pages.adminDashboard = new AdminDashboardPage(this);
 
     this.startupOverlay = document.getElementById("app-startup-overlay");
     this.startupMessage = document.getElementById("app-startup-message");
@@ -30,6 +32,8 @@ class App {
       this.startupOverlay?.querySelector?.(".app-startup-progress > span") ||
       null;
     this.startupHidden = false;
+    this.startupCurrentPercent = 0;
+    this.startupFlowTimer = null;
 
     this.init();
   }
@@ -41,7 +45,9 @@ class App {
   }
 
   setStartupProgress(percent, message) {
-    const safePercent = Math.max(0, Math.min(100, Number(percent) || 0));
+    const rawPercent = Math.max(0, Math.min(100, Number(percent) || 0));
+    const safePercent = Math.max(this.startupCurrentPercent || 0, rawPercent);
+    this.startupCurrentPercent = safePercent;
     if (typeof message === "string" && message) {
       this.setStartupMessage(message);
     }
@@ -55,6 +61,7 @@ class App {
 
   hideStartupOverlay() {
     if (!this.startupOverlay || this.startupHidden) return;
+    this.stopStartupProgressFlow();
     this.startupHidden = true;
     this.startupOverlay.classList.add("hidden");
     setTimeout(() => {
@@ -82,6 +89,34 @@ class App {
     });
   }
 
+  startStartupProgressFlow(targetPercent = 90) {
+    this.stopStartupProgressFlow();
+
+    this.startupFlowTimer = setInterval(() => {
+      if (this.startupHidden) {
+        this.stopStartupProgressFlow();
+        return;
+      }
+
+      const current = this.startupCurrentPercent || 0;
+      if (current >= targetPercent) {
+        this.stopStartupProgressFlow();
+        return;
+      }
+
+      const remaining = targetPercent - current;
+      const step = Math.max(0.35, Math.min(1.8, remaining * 0.12));
+      this.setStartupProgress(current + step);
+    }, 180);
+  }
+
+  stopStartupProgressFlow() {
+    if (this.startupFlowTimer) {
+      clearInterval(this.startupFlowTimer);
+      this.startupFlowTimer = null;
+    }
+  }
+
   async init() {
     const onDashboardProgress = (event) => {
       const message = event?.detail?.message;
@@ -102,7 +137,13 @@ class App {
     await this.checkAuth();
     this.setStartupProgress(18, "Authentifizierung erfolgreich");
 
+    if (this.currentUser?.role === "admin") {
+      this.pages.home = this.pages.adminDashboard;
+      this.allowedPages = new Set(["home", "settings"]);
+    }
+
     window.I18n?.init?.();
+    this.applyRoleNavigation();
 
     // Mobile menu toggle
     const mobileMenuToggle = document.getElementById("mobile-menu-toggle");
@@ -368,15 +409,17 @@ class App {
 
     this.setupHoverMarquee();
 
-    // Initialize home page first (it's needed for channel list)
+    // Initialize home page first
     this.setStartupProgress(32, "Dashboard wird vorbereitet...");
     await this.pages.home.init();
 
-    // Preload EPG data in background (non-blocking)
-    // This ensures EPG info is available on Live TV page without visiting Guide first
-    this.epgGuide.loadEpg().catch((err) => {
-      console.warn("Background EPG load failed:", err.message);
-    });
+    if (!this.allowedPages) {
+      // Preload EPG data in background (non-blocking)
+      // This ensures EPG info is available on Live TV page without visiting Guide first
+      this.epgGuide.loadEpg().catch((err) => {
+        console.warn("Background EPG load failed:", err.message);
+      });
+    }
 
     // Navigate to the page from URL hash, or default to home
     const hash = window.location.hash.slice(1); // Remove #
@@ -390,11 +433,15 @@ class App {
     this.navigateTo(initialPage, true); // true = replace history (don't add)
 
     if (initialPage === "home") {
+      this.startStartupProgressFlow(92);
       await this.waitForDashboardReady();
+      this.stopStartupProgressFlow();
       this.setStartupProgress(100, "Dashboard ist bereit");
     } else {
+      this.startStartupProgressFlow(90);
       this.setStartupProgress(92, "Startseite wird finalisiert...");
       await new Promise((resolve) => setTimeout(resolve, 350));
+      this.stopStartupProgressFlow();
       this.setStartupProgress(100, "Fertig");
     }
 
@@ -490,6 +537,30 @@ class App {
     }
   }
 
+  applyRoleNavigation() {
+    const isAdmin = this.currentUser?.role === "admin";
+    const allowed = isAdmin
+      ? new Set(["home", "settings"])
+      : new Set(["home", "live", "guide", "movies", "series", "settings"]);
+
+    document.querySelectorAll(".nav-link[data-page]").forEach((link) => {
+      const page = link.dataset.page;
+      link.style.display = allowed.has(page) ? "" : "none";
+
+      if (page === "home") {
+        const label = link.querySelector("span:not(.nav-icon)");
+        if (label) {
+          label.textContent = isAdmin ? "Dashboard" : "Home";
+        }
+      }
+    });
+
+    const nowPlaying = document.getElementById("now-playing-indicator");
+    if (nowPlaying) {
+      nowPlaying.style.display = isAdmin ? "none" : "";
+    }
+  }
+
   addLogoutButton() {
     const navbar = document.querySelector(".navbar-menu");
     if (!navbar || document.getElementById("logout-btn")) return;
@@ -526,6 +597,10 @@ class App {
   }
 
   navigateTo(pageName, replaceHistory = false) {
+    if (this.allowedPages && !this.allowedPages.has(pageName)) {
+      pageName = "home";
+    }
+
     // Don't navigate if already on this page
     if (this.currentPage === pageName && !replaceHistory) {
       return;

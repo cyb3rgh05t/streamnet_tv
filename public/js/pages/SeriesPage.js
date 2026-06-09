@@ -70,32 +70,6 @@ class SeriesPage {
   }
 
   getDisplaySourceName(source) {
-    const raw = String(source?.url || "").trim();
-    if (raw) {
-      try {
-        const normalized = /^[a-z][a-z\d+.-]*:\/\//i.test(raw)
-          ? raw
-          : `http://${raw}`;
-        const hostname = new URL(normalized).hostname.toLowerCase();
-        if (
-          hostname === "xui.streamnet.live" ||
-          hostname.endsWith(".xui.streamnet.live") ||
-          hostname === "xui.stremnet.live" ||
-          hostname.endsWith(".xui.stremnet.live")
-        ) {
-          return "StreamNet TV";
-        }
-      } catch {
-        if (
-          /(?:^|[\/@.])xui\.(?:streamnet|stremnet)\.live(?::\d+)?(?:\/|$)/i.test(
-            raw,
-          )
-        ) {
-          return "StreamNet TV";
-        }
-      }
-    }
-
     return source?.name || "";
   }
 
@@ -1158,7 +1132,9 @@ class SeriesPage {
   }
 
   getFormattedSourceName(series) {
-    return "StreamNet TV";
+    const sourceId = Number(series?.sourceId || series?.source_id || 0);
+    const source = this.sources.find((s) => Number(s.id) === sourceId);
+    return this.getDisplaySourceName(source) || "";
   }
 
   renderSeriesPeopleCards(tmdb, labels) {

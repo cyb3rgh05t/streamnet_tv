@@ -1,6 +1,7 @@
 const express = require("express");
 require("dotenv").config();
 const path = require("path");
+const fs = require("fs");
 const passport = require("passport");
 const auth = require("./auth");
 const syncService = require("./services/syncService");
@@ -10,6 +11,14 @@ require("./db");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const PUBLIC_DIR = path.join(__dirname, "..", "public");
+const CACHE_BUST_VERSION = String(
+  process.env.CACHE_VERSION ||
+    process.env.ASSET_VERSION ||
+    require("../package.json").version ||
+    "dev",
+);
+const CACHE_BUST_TOKEN = "__CACHE_BUST__";
 
 // Trust proxy headers (X-Forwarded-Proto, X-Forwarded-For, etc.)
 // Required for correct protocol detection behind reverse proxies (nginx, Caddy, etc.)
@@ -30,7 +39,34 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-app.use(express.static(path.join(__dirname, "..", "public")));
+function injectCacheBustVersion(html) {
+  return html.replaceAll(
+    CACHE_BUST_TOKEN,
+    encodeURIComponent(CACHE_BUST_VERSION),
+  );
+}
+
+function sendHtmlWithCacheBust(res, filename) {
+  const filePath = path.join(PUBLIC_DIR, filename);
+  fs.readFile(filePath, "utf8", (err, html) => {
+    if (err) {
+      console.error(`Failed to read ${filename}:`, err);
+      res.status(500).send("Internal server error");
+      return;
+    }
+    res.type("html").send(injectCacheBustVersion(html));
+  });
+}
+
+app.get(["/", "/index.html"], (req, res) => {
+  sendHtmlWithCacheBust(res, "index.html");
+});
+
+app.get("/login.html", (req, res) => {
+  sendHtmlWithCacheBust(res, "login.html");
+});
+
+app.use(express.static(PUBLIC_DIR));
 
 // FFMPEG Configuration (optional - for transcoding support)
 // Priority: 1. System FFmpeg (better Docker DNS support), 2. ffmpeg-static npm package
@@ -98,7 +134,6 @@ app.locals.ffmpegPath = findFFmpeg();
 app.locals.ffprobePath = findFFprobe();
 
 // Dynamic services loader - collects exports from files in ./services
-const fs = require("fs");
 const services = {};
 try {
   const servicesDir = path.join(__dirname, "services");
@@ -206,6 +241,7 @@ app.use("/api/probe", require("./routes/probe"));
 app.use("/api/subtitle", require("./routes/subtitle"));
 app.use("/api/settings", require("./routes/settings"));
 app.use("/api/history", require("./routes/history"));
+app.use("/api/admin", require("./routes/admin"));
 
 // Version endpoint
 app.get("/api/version", (req, res) => {
@@ -215,7 +251,7 @@ app.get("/api/version", (req, res) => {
 
 // SPA fallback - serve index.html for all non-API routes
 app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "..", "public", "index.html"));
+  sendHtmlWithCacheBust(res, "index.html");
 });
 
 // Error handling

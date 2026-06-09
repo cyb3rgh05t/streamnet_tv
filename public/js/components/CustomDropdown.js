@@ -112,7 +112,17 @@
   const createInstance = (select) => {
     const wrapper = document.createElement("div");
     wrapper.className = "custom-select";
-    select.classList.forEach((cls) => wrapper.classList.add(cls));
+    select.classList.forEach((cls) => {
+      // For the EPG refresh selector, avoid propagating base input skin
+      // classes to wrapper; otherwise wrapper and trigger both get framed.
+      if (
+        select.id === "epg-refresh-interval" &&
+        (cls === "form-input" || cls === "search-input")
+      ) {
+        return;
+      }
+      wrapper.classList.add(cls);
+    });
     if (select.id) {
       wrapper.dataset.selectId = select.id;
     }
