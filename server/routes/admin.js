@@ -145,6 +145,11 @@ function parsePositiveNumber(raw) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+function parseNonNegativeNumber(raw) {
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 function getContainerMemoryLimitBytes() {
   if (process.platform !== "linux") return null;
 
@@ -214,21 +219,46 @@ function getEffectiveCpuCores() {
   return Math.max(1, cores);
 }
 
-function sampleProcessCpuPct(cpuCores) {
-  const usage = process.cpuUsage();
+function readContainerCpuUsageMicros() {
+  if (process.platform !== "linux") return null;
+
+  const cpuStatV2 = readText("/sys/fs/cgroup/cpu.stat");
+  if (cpuStatV2) {
+    const usageLine = cpuStatV2
+      .split("\n")
+      .find((line) => line.startsWith("usage_usec "));
+    if (usageLine) {
+      const value = parseNonNegativeNumber(usageLine.split(/\s+/)[1]);
+      if (value !== null) return value;
+    }
+  }
+
+  const cpuAcctNs =
+    readText("/sys/fs/cgroup/cpuacct/cpuacct.usage") ||
+    readText("/sys/fs/cgroup/cpu,cpuacct/cpuacct.usage");
+  if (cpuAcctNs) {
+    const valueNs = parseNonNegativeNumber(cpuAcctNs);
+    if (valueNs !== null) return valueNs / 1000;
+  }
+
+  return null;
+}
+
+function sampleContainerCpuPct(cpuCores) {
+  const usageMicros = readContainerCpuUsageMicros();
+  if (!Number.isFinite(usageMicros)) return null;
+
   const nowNs = process.hrtime.bigint();
 
-  if (!lastCpuSample) {
-    lastCpuSample = { usage, nowNs };
+  if (!lastCpuSample || lastCpuSample.kind !== "container") {
+    lastCpuSample = { kind: "container", usageMicros, nowNs };
     return 0;
   }
 
-  const deltaUser = usage.user - lastCpuSample.usage.user;
-  const deltaSystem = usage.system - lastCpuSample.usage.system;
-  const deltaMicros = Math.max(0, deltaUser + deltaSystem);
+  const deltaMicros = Math.max(0, usageMicros - lastCpuSample.usageMicros);
   const deltaSeconds = Number(nowNs - lastCpuSample.nowNs) / 1e9;
 
-  lastCpuSample = { usage, nowNs };
+  lastCpuSample = { kind: "container", usageMicros, nowNs };
 
   if (!(deltaSeconds > 0)) return 0;
 
@@ -237,32 +267,121 @@ function sampleProcessCpuPct(cpuCores) {
   return Math.max(0, Math.min(100, cpuPct));
 }
 
+function sampleSystemCpuPct() {
+  const cpus = os.cpus();
+  if (!Array.isArray(cpus) || !cpus.length) return 0;
+
+  const totals = cpus.reduce(
+    (acc, cpu) => {
+      const times = cpu?.times || {};
+      const user = Number(times.user) || 0;
+      const nice = Number(times.nice) || 0;
+      const sys = Number(times.sys) || 0;
+      const idle = Number(times.idle) || 0;
+      const irq = Number(times.irq) || 0;
+
+      acc.idle += idle;
+      acc.total += user + nice + sys + idle + irq;
+      return acc;
+    },
+    { idle: 0, total: 0 },
+  );
+
+  if (!lastCpuSample || lastCpuSample.kind !== "system") {
+    lastCpuSample = { kind: "system", ...totals };
+    return 0;
+  }
+
+  const idleDelta = Math.max(0, totals.idle - lastCpuSample.idle);
+  const totalDelta = Math.max(0, totals.total - lastCpuSample.total);
+  lastCpuSample = { kind: "system", ...totals };
+
+  if (!(totalDelta > 0)) return 0;
+  return Math.max(0, Math.min(100, (1 - idleDelta / totalDelta) * 100));
+}
+
 function round1(n) {
   return Math.round((Number(n) || 0) * 10) / 10;
 }
 
-function readProcessIoBytes() {
+function readContainerIoBytes() {
   if (process.platform !== "linux") return null;
-  const ioText = readText("/proc/self/io");
-  if (!ioText) return null;
 
-  let readBytes = null;
-  let writeBytes = null;
+  const ioStat = readText("/sys/fs/cgroup/io.stat");
+  if (ioStat) {
+    let readBytes = 0;
+    let writeBytes = 0;
 
-  ioText.split("\n").forEach((line) => {
-    const [key, raw] = line.split(":").map((s) => String(s || "").trim());
-    if (!key || !raw) return;
-    const n = Number(raw);
-    if (!Number.isFinite(n) || n < 0) return;
-    if (key === "read_bytes") readBytes = n;
-    if (key === "write_bytes") writeBytes = n;
-  });
+    ioStat.split("\n").forEach((line) => {
+      const rMatch = line.match(/\brbytes=(\d+)/);
+      const wMatch = line.match(/\bwbytes=(\d+)/);
+      if (rMatch) readBytes += Number(rMatch[1]) || 0;
+      if (wMatch) writeBytes += Number(wMatch[1]) || 0;
+    });
 
-  if (!Number.isFinite(readBytes) || !Number.isFinite(writeBytes)) {
-    return null;
+    if (Number.isFinite(readBytes) && Number.isFinite(writeBytes)) {
+      return { readBytes, writeBytes, scope: "container" };
+    }
   }
 
-  return { readBytes, writeBytes };
+  const blkioText =
+    readText("/sys/fs/cgroup/blkio/blkio.io_service_bytes_recursive") ||
+    readText("/sys/fs/cgroup/blkio/blkio.throttle.io_service_bytes");
+  if (blkioText) {
+    let readBytes = 0;
+    let writeBytes = 0;
+
+    blkioText.split("\n").forEach((line) => {
+      const match = line.match(/^\S+\s+(Read|Write)\s+(\d+)$/i);
+      if (!match) return;
+      const op = match[1].toLowerCase();
+      const value = Number(match[2]) || 0;
+      if (op === "read") readBytes += value;
+      if (op === "write") writeBytes += value;
+    });
+
+    if (Number.isFinite(readBytes) && Number.isFinite(writeBytes)) {
+      return { readBytes, writeBytes, scope: "container" };
+    }
+  }
+
+  return null;
+}
+
+function readHostDiskIoBytes() {
+  if (process.platform !== "linux") return null;
+  const diskStats = readText("/proc/diskstats");
+  if (!diskStats) return null;
+
+  let readSectors = 0;
+  let writeSectors = 0;
+  diskStats.split("\n").forEach((line) => {
+    const parts = String(line || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (parts.length < 14) return;
+
+    const device = parts[2];
+    const isWholeDisk =
+      /^(sd[a-z]+|hd[a-z]+|vd[a-z]+|xvd[a-z]+|nvme\d+n\d+|mmcblk\d+|dm-\d+|md\d+)$/i.test(
+        device,
+      );
+    if (!isWholeDisk) return;
+
+    readSectors += Number(parts[5]) || 0;
+    writeSectors += Number(parts[9]) || 0;
+  });
+
+  return {
+    readBytes: readSectors * 512,
+    writeBytes: writeSectors * 512,
+    scope: "host",
+  };
+}
+
+function readLinuxDiskIoBytes() {
+  return readContainerIoBytes() || readHostDiskIoBytes();
 }
 
 function readWindowsDiskIoRates() {
@@ -507,7 +626,9 @@ router.get("/stats", async (req, res) => {
     const systemUsedMb = Math.round(effectiveUsedBytes / (1024 * 1024));
 
     const cpuCores = getEffectiveCpuCores();
-    const cpuUsagePct = sampleProcessCpuPct(cpuCores);
+    const containerCpuPct = sampleContainerCpuPct(cpuCores);
+    const cpuUsagePct = containerCpuPct ?? sampleSystemCpuPct();
+    const cpuSource = Number.isFinite(containerCpuPct) ? "container" : "system";
 
     const netNow = readNetworkTotals();
     const sampledAt = Date.now();
@@ -541,10 +662,10 @@ router.get("/stats", async (req, res) => {
           )
         : 0;
 
-    const ioNow = readProcessIoBytes();
+    const ioNow = readLinuxDiskIoBytes();
     let diskReadBps = 0;
     let diskWriteBps = 0;
-    if (ioNow && lastDiskSample) {
+    if (ioNow && lastDiskSample && lastDiskSample.scope === ioNow.scope) {
       const elapsed = Math.max(1, sampledAt - lastDiskSample.at) / 1000;
       diskReadBps =
         Math.max(0, ioNow.readBytes - lastDiskSample.readBytes) / elapsed;
@@ -556,6 +677,7 @@ router.get("/stats", async (req, res) => {
         at: sampledAt,
         readBytes: ioNow.readBytes,
         writeBytes: ioNow.writeBytes,
+        scope: ioNow.scope,
       };
     }
 
@@ -575,7 +697,7 @@ router.get("/stats", async (req, res) => {
         ? configuredDiskCapacityMBps
         : peakDiskRateMBps;
     const diskUtilizationPct =
-      ioNow && effectiveDiskCapacity > 0
+      (ioNow || windowsDiskIo) && effectiveDiskCapacity > 0
         ? Math.max(
             0,
             Math.min(100, (diskTotalMBps / effectiveDiskCapacity) * 100),
@@ -609,6 +731,7 @@ router.get("/stats", async (req, res) => {
         cpu: {
           usagePct: round1(cpuUsagePct),
           load1: round1(os.loadavg()[0] || 0),
+          source: cpuSource,
         },
         memory: {
           rssMb: Math.round(mem.rss / (1024 * 1024)),
@@ -631,6 +754,7 @@ router.get("/stats", async (req, res) => {
         },
         disk: {
           available: Boolean(ioNow || windowsDiskIo),
+          scope: ioNow?.scope || (windowsDiskIo ? "host" : "none"),
           readRateMBps: round1(diskReadMBps),
           writeRateMBps: round1(diskWriteMBps),
           totalRateMBps: round1(diskTotalMBps),
