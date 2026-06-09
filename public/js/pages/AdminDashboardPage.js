@@ -36,6 +36,18 @@ class AdminDashboardPage {
     return `${hours}h ${minutes}m`;
   }
 
+  formatMemory(valueMb) {
+    const value = Number(valueMb) || 0;
+    if (value >= 1024) {
+      return `${(value / 1024).toFixed(1)} GB`;
+    }
+    return `${Math.round(value)} MB`;
+  }
+
+  formatMemoryPair(usedMb, totalMb) {
+    return `${this.formatMemory(usedMb)} / ${this.formatMemory(totalMb)}`;
+  }
+
   setText(id, value) {
     const el = document.getElementById(id);
     if (el) el.textContent = String(value);
@@ -583,7 +595,7 @@ class AdminDashboardPage {
         pct: ramPct,
         color: "#00d5ff",
         value: `${ramPct}%`,
-        sub: `${Math.round(systemUsedMb || 0)} / ${Math.round(systemTotalMb || 0)} MB`,
+        sub: this.formatMemoryPair(systemUsedMb || 0, systemTotalMb || 0),
       },
       {
         title: this.tr("admin.trafficUp", {}, "TRAFFIC UP"),
@@ -830,7 +842,10 @@ class AdminDashboardPage {
         "admin-stat-uptime",
         this.formatUptime(stats.server?.uptimeSec),
       );
-      this.setText("admin-stat-ram", `${stats.server?.memory?.rssMb ?? 0} MB`);
+      this.setText(
+        "admin-stat-ram",
+        this.formatMemory(stats.server?.memory?.rssMb ?? 0),
+      );
       this.setText(
         "admin-stat-sessions",
         stats.transcode?.sessionsRunning ?? 0,
