@@ -6,6 +6,47 @@ const { requireAuth } = require("../auth");
 
 router.use(requireAuth);
 
+function isAdmin(user) {
+  return user?.role === "admin";
+}
+
+function isAdminManagedGlobalSource(source) {
+  return source?.is_admin_managed_global === true;
+}
+
+function isManagedXtreamSource(source) {
+  return source?.is_managed_xtream_auth === true;
+}
+
+function applyViewerXtreamPolicy(allSources, user) {
+  const xtreamAuthEnabled =
+    String(process.env.XTREAM_AUTH_ENABLED || "").toLowerCase() === "true";
+
+  if (!xtreamAuthEnabled || isAdmin(user)) {
+    return allSources;
+  }
+
+  const managedMasterIds = new Set(
+    allSources
+      .filter((source) => isManagedXtreamSource(source))
+      .map((source) => Number(source?.managed_master_source_id))
+      .filter((id) => Number.isFinite(id)),
+  );
+
+  return allSources.filter((source) => {
+    const type = String(source?.type || "").toLowerCase();
+    if (type !== "xtream") return true;
+    if (!isAdminManagedGlobalSource(source)) return true;
+
+    const sourceId = Number(source?.id);
+    if (Number.isFinite(sourceId) && managedMasterIds.has(sourceId)) {
+      return false;
+    }
+
+    return managedMasterIds.size === 0;
+  });
+}
+
 // Helper to map API item types to DB types and tables
 function mapItemType(apiType) {
   switch (apiType) {
@@ -26,8 +67,8 @@ function mapItemType(apiType) {
   }
 }
 
-async function getOwnedSourceIds(userId) {
-  const owned = await sources.getAll(userId);
+async function getOwnedSourceIds(user) {
+  const owned = applyViewerXtreamPolicy(await sources.getAll(user?.id), user);
   return owned.map((s) => parseInt(s.id)).filter((n) => Number.isFinite(n));
 }
 
@@ -52,7 +93,7 @@ router.get("/hidden", async (req, res) => {
           : row.item_id,
     });
 
-    const ownedSourceIds = await getOwnedSourceIds(req.user.id);
+    const ownedSourceIds = await getOwnedSourceIds(req.user);
     if (!ownedSourceIds.length) {
       return res.json([]);
     }
@@ -426,7 +467,7 @@ router.post("/hide/all", async (req, res) => {
 router.get("/recent/stats", async (req, res) => {
   try {
     const db = getDb();
-    const ownedSourceIds = await getOwnedSourceIds(req.user.id);
+    const ownedSourceIds = await getOwnedSourceIds(req.user);
     if (!ownedSourceIds.length) {
       return res.json({ movie: 0, series: 0 });
     }
@@ -480,7 +521,7 @@ router.get("/recent", async (req, res) => {
     }
 
     const db = getDb();
-    const ownedSourceIds = await getOwnedSourceIds(req.user.id);
+    const ownedSourceIds = await getOwnedSourceIds(req.user);
     if (!ownedSourceIds.length) {
       return res.json([]);
     }
