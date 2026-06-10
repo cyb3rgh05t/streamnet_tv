@@ -396,12 +396,29 @@ class EpgGuide {
       return { epgChannel, sourceChannel };
     });
 
-    // Collect unique groups from ALL playable channels
-    const groups = [
-      ...new Set(
-        allChannels.map((m) => m.sourceChannel.groupTitle || "Uncategorized"),
-      ),
-    ].sort();
+    // Collect groups in the same order as LiveTV (provider category order),
+    // then append any leftover groups as fallback.
+    const groupNameSet = new Set(
+      allChannels.map((m) => m.sourceChannel.groupTitle || "Uncategorized"),
+    );
+
+    const providerOrderedGroups = [];
+    const seenGroups = new Set();
+    (channelList.groups || []).forEach((group) => {
+      const name = group?.name;
+      if (!name || seenGroups.has(name)) return;
+      if (!groupNameSet.has(name)) return;
+      seenGroups.add(name);
+      providerOrderedGroups.push(name);
+    });
+
+    const remainingGroups = [...groupNameSet]
+      .filter((name) => !seenGroups.has(name))
+      .sort((a, b) =>
+        String(a).localeCompare(String(b), undefined, { sensitivity: "base" }),
+      );
+
+    const groups = [...providerOrderedGroups, ...remainingGroups];
 
     // Add Favorites at the top if there are any
     const hasFavorites = this.favorites.size > 0;

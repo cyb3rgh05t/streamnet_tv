@@ -575,8 +575,14 @@ h4 {
   display: none;
 }
 
-.navbar.collapsed .sidebar-toggle {
-  display: none;
+.navbar.collapsed:not(.hover-open) .navbar-brand-row {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.navbar.collapsed:not(.hover-open) .sidebar-toggle {
+  display: inline-flex;
+  margin: 0 auto;
 }
 
 .navbar.collapsed .navbar-menu {
@@ -1620,13 +1626,25 @@ select::-ms-expand {
   flex-direction: column;
   justify-content: center;
   gap: 2px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-right-color: rgba(255, 255, 255, 0.28);
+  border: 1px solid var(--color-border);
   box-sizing: border-box;
-  box-shadow:
-    inset 1px 0 0 rgba(255, 255, 255, 0.08),
-    inset -1px 0 0 rgba(255, 255, 255, 0.22);
+  box-shadow: none;
   transition: background var(--transition-fast);
+}
+
+.live-epg-program.compact {
+  padding: 4px 5px;
+}
+
+.live-epg-program.tiny {
+  padding: 0;
+  border-left-width: 1px;
+  border-right-width: 1px;
+}
+
+.live-epg-program.tiny::before,
+.live-epg-program.tiny::after {
+  display: none;
 }
 
 .live-epg-program::before {
@@ -1643,6 +1661,7 @@ select::-ms-expand {
     rgba(255, 199, 71, 0.12) 100%
   );
   box-shadow: 0 0 5px rgba(255, 199, 71, 0.35);
+  display: none;
 }
 
 .live-epg-program::after {
@@ -1658,6 +1677,7 @@ select::-ms-expand {
     rgba(255, 255, 255, 0.34) 50%,
     rgba(255, 255, 255, 0.06) 100%
   );
+  display: none;
 }
 
 .live-epg-program:hover {
@@ -1707,6 +1727,7 @@ select::-ms-expand {
 
 .live-epg-title {
   font-size: 0.875rem;
+  font-weight: 500;
   color: var(--color-text-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -2813,6 +2834,7 @@ video::cue {
   border-radius: var(--radius-md);
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
 
@@ -2826,6 +2848,7 @@ video::cue {
 
 .source-info {
   flex: 1;
+  min-width: 0;
 }
 
 .source-name {
@@ -2836,11 +2859,17 @@ video::cue {
   font-size: 0.75rem;
   color: var(--color-text-muted);
   word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 .source-actions {
   display: flex;
   gap: var(--space-xs);
+  margin-left: auto;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .source-lock-badge {
@@ -5251,6 +5280,12 @@ kbd {
 .movies-controls .source-select,
 .series-controls .source-select {
   min-width: 150px;
+}
+
+/* Wider group dropdown on TV Guide for long provider group names. */
+.guide-controls #epg-group-select,
+.guide-controls .custom-select[data-select-id="epg-group-select"] {
+  min-width: 220px;
 }
 
 .guide-controls .search-wrapper,
@@ -9092,6 +9127,23 @@ kbd {
   margin-bottom: 18px !important;
 }
 
+#page-settings #epg-last-refresh-hint {
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+}
+
+/* Sources tab: prevent any residual horizontal overflow from dynamic source rows. */
+#page-settings #tab-sources.tab-content.active,
+#page-settings #tab-sources .source-section,
+#page-settings #tab-sources .source-list {
+  overflow-x: clip !important;
+}
+
+#page-settings #tab-sources .source-item {
+  flex-wrap: wrap;
+}
+
 #page-settings .setting-item > .setting-info,
 #page-settings .source-item > .source-info {
   flex: 1 1 auto !important;
@@ -9116,5 +9168,334 @@ kbd {
 @media (max-width: 960px) {
   #page-settings .settings-layout {
     grid-template-columns: 1fr !important;
+  }
+}
+
+/* =====================================================
+   Responsive Hardening (Anti-Overlap)
+   ===================================================== */
+
+.main-content,
+.page,
+.home-layout,
+.dashboard-content,
+.admin-dashboard-content,
+#page-settings .settings-container,
+#page-settings .settings-layout,
+#page-settings .settings-main,
+.dashboard-hero,
+.dashboard-hero-stats,
+.dashboard-actions,
+.movies-controls,
+.series-controls,
+.guide-controls,
+.sidebar-controls,
+.admin-history-toolbar,
+.source-item,
+.setting-item {
+  min-width: 0;
+}
+
+.dashboard-title,
+.dashboard-subtitle,
+.dashboard-stat-label,
+.dashboard-stat-value,
+.group-name,
+.channel-name,
+.program-title,
+.modal-title,
+.source-name,
+.setting-label {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 1200px) {
+  :root {
+    --sidebar-width: 272px;
+    --epg-sidebar-width: 190px;
+  }
+
+  .dashboard-content,
+  .admin-dashboard-content,
+  #page-settings .settings-container {
+    padding-inline: clamp(12px, 2vw, 20px) !important;
+  }
+
+  .dashboard-hero-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-kpi-grid,
+  .admin-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  html,
+  body {
+    font-size: 13px;
+  }
+
+  .dashboard-actions,
+  .movies-controls,
+  .series-controls,
+  .guide-controls,
+  .sidebar-controls,
+  .admin-history-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-start;
+  }
+
+  #page-settings .setting-item,
+  #page-settings .source-item {
+    flex-wrap: wrap !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
+
+  #page-settings .setting-item > .source-select,
+  #page-settings .setting-item > .form-input,
+  #page-settings .setting-item > .search-input,
+  #page-settings .setting-item > .volume-slider-container,
+  #page-settings .setting-item > .custom-select {
+    margin-left: 0 !important;
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  #page-settings .source-item > .source-actions {
+    margin-left: 0 !important;
+    width: 100% !important;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 768px) {
+  .modal-content {
+    width: min(94vw, 560px);
+    max-height: calc(100dvh - 18px);
+  }
+
+  .dashboard-hero-stats,
+  .admin-kpi-grid,
+  .admin-stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .dashboard-card {
+    flex: 0 0 clamp(148px, 42vw, 184px);
+    max-width: clamp(148px, 42vw, 184px);
+  }
+
+  .channel-tile {
+    flex: 0 0 clamp(154px, 46vw, 188px);
+  }
+
+  .admin-history-toolbar .custom-select.admin-history-month-select {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+}
+
+/* Phone landscape: use compact icon rail to free horizontal space. */
+@media (max-height: 500px) and (orientation: landscape) and (max-width: 1024px) {
+  .navbar {
+    width: 82px;
+    padding: 12px 0;
+  }
+
+  .navbar-brand {
+    padding: 0 var(--space-sm) var(--space-md);
+  }
+
+  .logo-img {
+    height: 42px;
+    max-width: 42px;
+  }
+
+  .sidebar-toggle,
+  .version-badge,
+  .nav-lang-switch,
+  .nav-link span:not(.nav-icon),
+  .now-playing-text {
+    display: none;
+  }
+
+  .navbar-menu {
+    padding: 0 var(--space-sm);
+  }
+
+  .nav-link,
+  .now-playing-indicator {
+    justify-content: center;
+    gap: 0;
+    padding: 10px 8px;
+  }
+}
+
+/* Touch tablets (incl. iPad Pro): denser nav + fluid dashboard wrapping. */
+@media (hover: none) and (pointer: coarse) and (min-width: 769px) and (max-width: 1366px) {
+  .navbar {
+    width: 188px;
+    padding: 16px 0;
+  }
+
+  .navbar-brand {
+    padding-bottom: 16px;
+  }
+
+  .logo-img {
+    height: 46px;
+    max-width: 46px;
+  }
+
+  .navbar-menu {
+    padding: 0 10px;
+  }
+
+  .nav-link {
+    gap: 10px;
+    padding: 11px 10px;
+    font-size: 0.92rem;
+  }
+
+  .dashboard-content,
+  .admin-dashboard-content {
+    max-width: 100%;
+    padding: 20px 16px 26px;
+  }
+
+  .dashboard-hero {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .dashboard-hero-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .hero-action-btn {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
+    white-space: normal;
+  }
+}
+
+/* Tablet portrait-ish widths: force icon rail to avoid content squeeze. */
+@media (hover: none) and (pointer: coarse) and (min-width: 769px) and (max-width: 1100px) {
+  .navbar {
+    width: 86px;
+  }
+
+  .sidebar-toggle,
+  .version-badge,
+  .nav-lang-switch,
+  .nav-link span:not(.nav-icon),
+  .now-playing-text {
+    display: none;
+  }
+
+  .navbar-menu {
+    padding: 0 var(--space-sm);
+  }
+
+  .nav-link,
+  .now-playing-indicator {
+    justify-content: center;
+    gap: 0;
+    padding: 12px 8px;
+  }
+}
+
+/* 12.6" tablets (portrait + landscape): denser cards and controlled panel heights. */
+@media (hover: none) and (pointer: coarse) and (min-width: 960px) and (max-width: 1400px) and (min-height: 1100px) {
+  :root {
+    --sidebar-width: 232px;
+    --epg-sidebar-width: 184px;
+  }
+
+  .dashboard-content,
+  .admin-dashboard-content {
+    padding: 18px 14px 24px;
+  }
+
+  .dashboard-hero {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .dashboard-card {
+    flex: 0 0 176px;
+    max-width: 176px;
+  }
+
+  .channel-tile {
+    flex: 0 0 176px;
+  }
+
+  .live-video-preview {
+    height: clamp(210px, 32vh, 340px);
+  }
+
+  .live-epg-panel {
+    max-height: min(46vh, 480px);
+  }
+}
+
+/* Tall narrow desktops (e.g. 1070x1740): keep layout breathable and prevent horizontal squeeze. */
+@media (hover: hover) and (pointer: fine) and (min-width: 1000px) and (max-width: 1180px) and (min-height: 1600px) {
+  :root {
+    --sidebar-width: 96px;
+    --epg-sidebar-width: 178px;
+  }
+
+  .sidebar-toggle,
+  .version-badge,
+  .nav-lang-switch,
+  .nav-link span:not(.nav-icon),
+  .now-playing-text {
+    display: none;
+  }
+
+  .navbar-menu {
+    padding: 0 var(--space-sm);
+  }
+
+  .nav-link,
+  .now-playing-indicator {
+    justify-content: center;
+    gap: 0;
+    padding: 11px 8px;
+  }
+
+  .dashboard-content,
+  .admin-dashboard-content {
+    padding: 18px 14px 24px !important;
+    max-width: 100%;
+  }
+
+  .dashboard-hero {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .dashboard-hero-stats,
+  .admin-kpi-grid,
+  .admin-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

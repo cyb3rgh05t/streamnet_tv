@@ -532,6 +532,42 @@ class HomePage {
     }, 100);
   }
 
+  openRecentMoviePreplay(item) {
+    if (!item || !this.app?.pages?.movies) return;
+
+    const data =
+      item && item.data && typeof item.data === "object" ? item.data : {};
+    const movie = {
+      stream_id: item.item_id || item.id || data.id,
+      sourceId:
+        Number(item.source_id || item.sourceId || data.sourceId || 0) || 0,
+      name: item.name || data.title || this.tr("home.unknownTitle"),
+      stream_icon: item.stream_icon || data.poster || data.stream_icon || "",
+      cover: data.poster || item.stream_icon || "",
+      year:
+        item.year ||
+        item.releaseDate ||
+        item.release_date ||
+        data.year ||
+        data.releaseYear ||
+        data.release_date ||
+        data.releaseDate ||
+        "",
+      releaseDate:
+        item.releaseDate || item.release_date || data.releaseDate || "",
+      plot: item.plot || data.description || data.plot || "",
+    };
+
+    if (!movie.stream_id || !movie.sourceId) {
+      return;
+    }
+
+    this.app.navigateTo("movies");
+    setTimeout(() => {
+      this.app.pages.movies.showMoviePreplay(movie);
+    }, 100);
+  }
+
   async renderRecentMovies() {
     const list = document.getElementById("recent-movies-list");
     if (!list) return 0;
@@ -555,7 +591,7 @@ class HomePage {
         card.addEventListener("click", () => {
           const id = card.dataset.id;
           const item = movies.find((m) => String(m.item_id) === String(id));
-          if (item) this.playItem(item);
+          if (item) this.openRecentMoviePreplay(item);
         });
       });
 
@@ -598,7 +634,10 @@ class HomePage {
           const item = enrichedSeries.find(
             (s) => String(s.item_id) === String(id),
           );
-          if (item) this.navigateToSeries(item);
+          if (item) {
+            // Keep recent series aligned with movie behavior: open preplay/details first.
+            this.navigateToSeries(item);
+          }
         });
       });
 

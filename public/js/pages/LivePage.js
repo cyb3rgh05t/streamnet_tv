@@ -429,10 +429,10 @@ class LivePage {
               const clippedStop = Math.min(pStop, windowEndMs);
               const left =
                 ((clippedStart - windowStartMs) / 60000) * PX_PER_MIN;
-              const width = Math.max(
-                ((clippedStop - clippedStart) / 60000) * PX_PER_MIN - 4,
-                22,
-              );
+              const rawWidth =
+                ((clippedStop - clippedStart) / 60000) * PX_PER_MIN - 4;
+              // Keep tiny segments visible without forcing overlaps with neighbors.
+              const width = Math.max(6, rawWidth);
               const timeLabel = new Date(prog.start).toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
@@ -441,12 +441,16 @@ class LivePage {
                 pStart <= now.getTime() && pStop > now.getTime();
               const isPast = pStop <= now.getTime();
               const cls = isCurrent ? "current" : isPast ? "past" : "future";
+              const densityClass =
+                width < 28 ? "tiny" : width < 58 ? "compact" : "";
+              const showTime = width >= 74;
+              const showTitle = width >= 32;
 
-              return `<div class="live-epg-program ${cls}"
+              return `<div class="live-epg-program ${cls} ${densityClass}"
                        style="left:${left}px;width:${width}px"
                        title="${this.escapeHtml(prog.title)} • ${timeLabel}">
-                    <span class="live-epg-time">${timeLabel}</span>
-                    <span class="live-epg-title">${this.escapeHtml(prog.title)}</span>
+                    ${showTime ? `<span class="live-epg-time">${timeLabel}</span>` : ""}
+                    ${showTitle ? `<span class="live-epg-title">${this.escapeHtml(prog.title)}</span>` : ""}
                   </div>`;
             })
             .join("");
