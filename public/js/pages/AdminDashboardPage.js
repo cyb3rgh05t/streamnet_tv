@@ -7,9 +7,13 @@ class AdminDashboardPage {
     this.app = app;
     this.refreshTimer = null;
     this.statsLoading = false;
-    this.historyRange = "30d";
+    this.historyRange = "month";
     this.selectedHistoryMonth = "latest";
     this.latestStats = null;
+    this.showHistoryTrendline = true;
+    this._onHistoryResize = () => {
+      if (this.latestStats) this.renderHistorySuite(this.latestStats);
+    };
   }
 
   async init() {
@@ -196,8 +200,11 @@ class AdminDashboardPage {
           value === peak ? "admin-users7d-col is-peak" : "admin-users7d-col";
         return `
           <div class="${cls}" title="${cleanLabels[idx]}: ${value}">
-            <span class="admin-users7d-value">${value}</span>
-            <div class="admin-users7d-bar" style="height:${pct}%"></div>
+            <div class="admin-users7d-bar-track" style="--bar-pct:${pct.toFixed(2)}">
+              <div class="admin-users7d-bar" style="--bar-pct:${pct.toFixed(2)}">
+                <span class="admin-users7d-value on-bar">${value}</span>
+              </div>
+            </div>
             <span class="admin-users7d-label">${label}</span>
           </div>
         `;
@@ -310,6 +317,57 @@ class AdminDashboardPage {
     return entries.slice(-limit);
   }
 
+  paintDailyTrendline(host, values = []) {
+    const svg = host?.querySelector(".admin-history-line");
+    const barsHost = host?.querySelector(".admin-history-daily-bars");
+    if (!svg || !barsHost) return;
+
+    const barEls = Array.from(
+      barsHost.querySelectorAll(".admin-history-bar-track .admin-history-bar"),
+    );
+    if (!barEls.length) return;
+
+    const barsRect = barsHost.getBoundingClientRect();
+    if (barsRect.width <= 0 || barsRect.height <= 0) return;
+
+    const points = barEls
+      .map((barEl) => {
+        const barRect = barEl.getBoundingClientRect();
+        const x =
+          ((barRect.left + barRect.width / 2 - barsRect.left) /
+            barsRect.width) *
+          100;
+        const y = ((barRect.top - barsRect.top) / barsRect.height) * 100;
+        return {
+          x: Math.max(0, Math.min(100, x)),
+          y: Math.max(0, Math.min(100, y)),
+        };
+      })
+      .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+
+    if (!points.length) return;
+
+    const polyline = svg.querySelector("polyline");
+    if (!polyline) return;
+
+    polyline.setAttribute(
+      "points",
+      points.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" "),
+    );
+
+    svg.querySelectorAll("circle").forEach((el) => el.remove());
+    points.forEach((p) => {
+      const dot = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "circle",
+      );
+      dot.setAttribute("cx", p.x.toFixed(2));
+      dot.setAttribute("cy", p.y.toFixed(2));
+      dot.setAttribute("r", "1.8");
+      svg.appendChild(dot);
+    });
+  }
+
   renderDailyPeakHistory(targetId, labels = [], values = []) {
     const host = document.getElementById(targetId);
     if (!host) return;
@@ -332,14 +390,6 @@ class AdminDashboardPage {
     const highest = viewValues.length ? Math.max(...viewValues) : 0;
     const lowest = viewValues.length ? Math.min(...viewValues) : 0;
 
-    const linePoints = viewValues
-      .map((v, idx) => {
-        const x = (idx * 100) / Math.max(1, viewValues.length - 1);
-        const y = 90 - (v / max) * 72;
-        return `${x.toFixed(2)},${y.toFixed(2)}`;
-      })
-      .join(" ");
-
     const yTicks = [max, Math.round(max * 0.66), Math.round(max * 0.33), 0]
       .map((tick) => `<span>${tick}</span>`)
       .join("");
@@ -361,8 +411,11 @@ class AdminDashboardPage {
 
         return `
           <div class="${classes.join(" ")}" title="${viewLabels[idx]}: ${value}">
-            <span class="admin-history-value-pill">${value}</span>
-            <div class="admin-history-bar" style="height:${pct}%"></div>
+              <div class="admin-history-bar-track" style="--bar-pct:${pct.toFixed(2)}">
+                <div class="admin-history-bar" style="--bar-pct:${pct.toFixed(2)}">
+                  <span class="admin-history-value-pill on-bar">${value}</span>
+                </div>
+            </div>
             <span class="admin-history-axis-label">${labelText}</span>
           </div>
         `;
@@ -377,17 +430,23 @@ class AdminDashboardPage {
       </div>
       <div class="admin-history-daily-chart">
         <div class="admin-history-y-axis">${yTicks}</div>
-        <svg class="admin-history-line" viewBox="0 0 120 100" preserveAspectRatio="none" aria-hidden="true">
-          <polyline points="${linePoints}" />
-        </svg>
+        ${
+          this.showHistoryTrendline
+            ? `<svg class="admin-history-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline points="" /></svg>`
+            : ""
+        }
         <div class="admin-history-daily-bars" style="--history-cols:${points}; --history-gap:${points > 24 ? 4 : 8}px;">${cols}</div>
       </div>
       <div class="admin-history-legend">
         <span><i class="swatch best"></i>${this.tr("admin.highestPeak", {}, "Highest Peak")}</span>
         <span><i class="swatch low"></i>${this.tr("admin.lowestPeak", {}, "Lowest Peak")}</span>
-        <span><i class="swatch trend"></i>${this.tr("admin.trend", {}, "Trend")}</span>
+        ${this.showHistoryTrendline ? `<span><i class="swatch trend"></i>${this.tr("admin.trend", {}, "Trend")}</span>` : ""}
       </div>
     `;
+
+    if (this.showHistoryTrendline) {
+      requestAnimationFrame(() => this.paintDailyTrendline(host, viewValues));
+    }
   }
 
   renderHistorySuite(stats = {}) {
@@ -508,8 +567,11 @@ class AdminDashboardPage {
 
         return `
           <div class="${classes.join(" ")}" title="${viewLabels[idx]}: ${value}">
-            <div class="admin-history-month-bar" style="height:${pct}%"></div>
-            <span class="admin-history-value-pill">${value}</span>
+            <div class="admin-history-month-track" style="--bar-pct:${pct.toFixed(2)}">
+              <div class="admin-history-month-bar" style="--bar-pct:${pct.toFixed(2)}">
+                <span class="admin-history-value-pill on-bar">${value}</span>
+              </div>
+            </div>
             <span class="admin-history-axis-label">${viewLabels[idx]}</span>
           </div>
         `;
@@ -749,6 +811,7 @@ class AdminDashboardPage {
             <div class="admin-history-header">
               <h2>${this.tr("admin.dailyPeakConcurrent", {}, "Daily Peak Concurrent Streams")}</h2>
               <div class="admin-history-toolbar" aria-label="${this.tr("admin.historyRange", {}, "History Range")}">
+                <button type="button" id="admin-history-line-toggle" class="admin-history-line-toggle ${this.showHistoryTrendline ? "is-active" : ""}" aria-pressed="${this.showHistoryTrendline ? "true" : "false"}">${this.showHistoryTrendline ? this.tr("admin.hideTrend", {}, "Trend aus") : this.tr("admin.showTrend", {}, "Trend an")}</button>
                 <button type="button" class="admin-history-chip ${this.historyRange === "7d" ? "is-active" : ""}" data-range="7d">${this.tr("admin.days7", {}, "7 Days")}</button>
                 <button type="button" class="admin-history-chip ${this.historyRange === "14d" ? "is-active" : ""}" data-range="14d">${this.tr("admin.days14", {}, "14 Days")}</button>
                 <button type="button" class="admin-history-chip ${this.historyRange === "30d" ? "is-active" : ""}" data-range="30d">${this.tr("admin.days30", {}, "30 Days")}</button>
@@ -813,6 +876,22 @@ class AdminDashboardPage {
         pageHome.querySelectorAll(".admin-history-chip").forEach((chip) => {
           chip.classList.toggle("is-active", chip.dataset.range === "month");
         });
+        if (this.latestStats) this.renderHistorySuite(this.latestStats);
+      });
+
+    document
+      .getElementById("admin-history-line-toggle")
+      ?.addEventListener("click", (event) => {
+        this.showHistoryTrendline = !this.showHistoryTrendline;
+        const toggleBtn = event.currentTarget;
+        toggleBtn.classList.toggle("is-active", this.showHistoryTrendline);
+        toggleBtn.setAttribute(
+          "aria-pressed",
+          this.showHistoryTrendline ? "true" : "false",
+        );
+        toggleBtn.textContent = this.showHistoryTrendline
+          ? this.tr("admin.hideTrend", {}, "Trend aus")
+          : this.tr("admin.showTrend", {}, "Trend an");
         if (this.latestStats) this.renderHistorySuite(this.latestStats);
       });
   }
@@ -916,13 +995,17 @@ class AdminDashboardPage {
     this.renderLayout();
     await this.loadStats();
 
+    window.addEventListener("resize", this._onHistoryResize);
+
     if (this.refreshTimer) clearInterval(this.refreshTimer);
     this.refreshTimer = setInterval(() => {
       this.loadStats();
-    }, 30000);
+    }, 10000);
   }
 
   hide() {
+    window.removeEventListener("resize", this._onHistoryResize);
+
     if (this.refreshTimer) {
       clearInterval(this.refreshTimer);
       this.refreshTimer = null;

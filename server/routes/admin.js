@@ -446,6 +446,13 @@ function readWindowsDiskIoRates() {
 
 router.get("/stats", async (req, res) => {
   try {
+    res.set(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, proxy-revalidate",
+    );
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
+
     const users = await db.users.getAll();
     const allSources = await db.sources.getAll();
     const sessions = transcodeSession.getAllSessions();
@@ -527,23 +534,34 @@ router.get("/stats", async (req, res) => {
     const nowMs = Date.now();
     const hourMs = 3600000;
     const watchActivity24h = new Array(24).fill(0);
-    let watchRows = [];
-    if (sourceIds.length > 0) {
-      const placeholders = sourceIds.map(() => "?").join(",");
-      watchRows = sqlite
+
+    // Prefer append-only watch events for history analytics accuracy.
+    let watchEventRows = sqlite
+      .prepare(
+        `
+          SELECT created_at
+          FROM watch_events
+          WHERE created_at >= ?
+            AND event_type = 'session_start'
+        `,
+      )
+      .all(nowMs - 24 * hourMs);
+
+    // Backward-compatible fallback for older databases with no events yet.
+    if (!watchEventRows.length) {
+      watchEventRows = sqlite
         .prepare(
           `
-            SELECT updated_at
+            SELECT updated_at AS created_at
             FROM watch_history
             WHERE updated_at >= ?
-              AND source_id IN (${placeholders})
           `,
         )
-        .all(nowMs - 24 * hourMs, ...sourceIds);
+        .all(nowMs - 24 * hourMs);
     }
 
-    for (const row of watchRows) {
-      const ts = Number(row.updated_at) || 0;
+    for (const row of watchEventRows) {
+      const ts = Number(row.created_at) || 0;
       const diff = nowMs - ts;
       if (diff < 0 || diff > 24 * hourMs) continue;
       const bucket = 23 - Math.floor(diff / hourMs);
@@ -557,52 +575,79 @@ router.get("/stats", async (req, res) => {
 
     const watch30d = { labels: [], values: [] };
     const watch12m = { labels: [], values: [] };
-    if (sourceIds.length > 0) {
-      const placeholders = sourceIds.map(() => "?").join(",");
+    const dayRowsEvents = sqlite
+      .prepare(
+        `
+          SELECT strftime('%Y-%m-%d', created_at / 1000, 'unixepoch', 'localtime') AS day_key,
+                 COUNT(*) AS total
+          FROM watch_events
+          WHERE created_at >= ?
+            AND event_type = 'session_start'
+          GROUP BY day_key
+          ORDER BY day_key ASC
+        `,
+      )
+      .all(nowMs - 30 * 86400000);
 
-      const dayRows = sqlite
-        .prepare(
-          `
-            SELECT strftime('%Y-%m-%d', updated_at / 1000, 'unixepoch', 'localtime') AS day_key,
-                   COUNT(*) AS total
-            FROM watch_history
-            WHERE updated_at >= ?
-              AND source_id IN (${placeholders})
-            GROUP BY day_key
-            ORDER BY day_key ASC
-          `,
-        )
-        .all(nowMs - 30 * 86400000, ...sourceIds);
+    const monthRowsEvents = sqlite
+      .prepare(
+        `
+          SELECT strftime('%Y-%m', created_at / 1000, 'unixepoch', 'localtime') AS month_key,
+                 COUNT(*) AS total
+          FROM watch_events
+          WHERE created_at >= ?
+            AND event_type = 'session_start'
+          GROUP BY month_key
+          ORDER BY month_key ASC
+        `,
+      )
+      .all(nowMs - 370 * 86400000);
 
-      const monthRows = sqlite
-        .prepare(
-          `
-            SELECT strftime('%Y-%m', updated_at / 1000, 'unixepoch', 'localtime') AS month_key,
-                   COUNT(*) AS total
-            FROM watch_history
-            WHERE updated_at >= ?
-              AND source_id IN (${placeholders})
-            GROUP BY month_key
-            ORDER BY month_key ASC
-          `,
-        )
-        .all(nowMs - 370 * 86400000, ...sourceIds);
+    // Backward-compatible fallback when event timeline is still empty.
+    const dayRows = dayRowsEvents.length
+      ? dayRowsEvents
+      : sqlite
+          .prepare(
+            `
+              SELECT strftime('%Y-%m-%d', updated_at / 1000, 'unixepoch', 'localtime') AS day_key,
+                     COUNT(*) AS total
+              FROM watch_history
+              WHERE updated_at >= ?
+              GROUP BY day_key
+              ORDER BY day_key ASC
+            `,
+          )
+          .all(nowMs - 30 * 86400000);
 
-      const dayMap = new Map(
-        dayRows.map((r) => [String(r.day_key || ""), Number(r.total) || 0]),
-      );
-      const monthMap = new Map(
-        monthRows.map((r) => [String(r.month_key || ""), Number(r.total) || 0]),
-      );
+    const monthRows = monthRowsEvents.length
+      ? monthRowsEvents
+      : sqlite
+          .prepare(
+            `
+              SELECT strftime('%Y-%m', updated_at / 1000, 'unixepoch', 'localtime') AS month_key,
+                     COUNT(*) AS total
+              FROM watch_history
+              WHERE updated_at >= ?
+              GROUP BY month_key
+              ORDER BY month_key ASC
+            `,
+          )
+          .all(nowMs - 370 * 86400000);
 
-      const recentDays = buildRecentDayKeys(30);
-      watch30d.labels = recentDays.labels;
-      watch30d.values = recentDays.keys.map((k) => dayMap.get(k) || 0);
+    const dayMap = new Map(
+      dayRows.map((r) => [String(r.day_key || ""), Number(r.total) || 0]),
+    );
+    const monthMap = new Map(
+      monthRows.map((r) => [String(r.month_key || ""), Number(r.total) || 0]),
+    );
 
-      const recentMonths = buildRecentMonthKeys(12);
-      watch12m.labels = recentMonths.labels;
-      watch12m.values = recentMonths.keys.map((k) => monthMap.get(k) || 0);
-    }
+    const recentDays = buildRecentDayKeys(30);
+    watch30d.labels = recentDays.labels;
+    watch30d.values = recentDays.keys.map((k) => dayMap.get(k) || 0);
+
+    const recentMonths = buildRecentMonthKeys(12);
+    watch12m.labels = recentMonths.labels;
+    watch12m.values = recentMonths.keys.map((k) => monthMap.get(k) || 0);
 
     const mem = process.memoryUsage();
     const hostTotalBytes = os.totalmem();

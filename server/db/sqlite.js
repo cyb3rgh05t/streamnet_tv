@@ -1,34 +1,124 @@
-const Database = require('better-sqlite3');
-const path = require('path');
-const fs = require('fs');
+const Database = require("better-sqlite3");
+const path = require("path");
+const fs = require("fs");
 
-const dataDir = path.join(__dirname, '..', '..', 'data');
-const dbPath = path.join(dataDir, 'content.db');
+const dataDir = path.join(__dirname, "..", "..", "data");
+const dbPath = path.join(dataDir, "content.db");
 
 // Ensure data directory exists
 if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
+  fs.mkdirSync(dataDir, { recursive: true });
 }
 
 let db;
 
-function getDb() {
-    if (!db) {
-        console.log('[SQLite] Opening database at', dbPath);
-        db = new Database(dbPath);
-        // Optimize performance
-        db.pragma('journal_mode = WAL');
-        db.pragma('synchronous = NORMAL');
-        initSchema();
+function isCorruptionError(err) {
+  if (!err) return false;
+  const code = String(err.code || "").toUpperCase();
+  const msg = String(err.message || "").toLowerCase();
+  return (
+    code === "SQLITE_CORRUPT" ||
+    code === "SQLITE_NOTADB" ||
+    msg.includes("database disk image is malformed") ||
+    msg.includes("file is not a database")
+  );
+}
+
+function configurePragmas(database) {
+  database.pragma("journal_mode = WAL");
+  database.pragma("synchronous = NORMAL");
+}
+
+function openDatabaseFile() {
+  const database = new Database(dbPath);
+  configurePragmas(database);
+  return database;
+}
+
+function moveIfExists(srcPath, destPath) {
+  if (!fs.existsSync(srcPath)) return;
+  fs.renameSync(srcPath, destPath);
+}
+
+function backupCorruptDatabaseFiles(reason) {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const recoveryDir = path.join(dataDir, "recovery");
+  if (!fs.existsSync(recoveryDir)) {
+    fs.mkdirSync(recoveryDir, { recursive: true });
+  }
+
+  const baseName = `content-corrupt-${stamp}`;
+  const files = [
+    { from: dbPath, to: path.join(recoveryDir, `${baseName}.db`) },
+    {
+      from: `${dbPath}-wal`,
+      to: path.join(recoveryDir, `${baseName}.db-wal`),
+    },
+    {
+      from: `${dbPath}-shm`,
+      to: path.join(recoveryDir, `${baseName}.db-shm`),
+    },
+  ];
+
+  for (const file of files) {
+    try {
+      moveIfExists(file.from, file.to);
+    } catch (err) {
+      console.error("[SQLite] Failed to move corrupt file:", file.from, err);
     }
-    return db;
+  }
+
+  console.error(
+    `[SQLite] Corrupt database files were moved to ${recoveryDir}. Cause: ${reason}`,
+  );
+}
+
+function recoverFromCorruption(cause) {
+  try {
+    if (db) {
+      db.close();
+    }
+  } catch {
+    // Ignore close errors during recovery.
+  }
+
+  db = null;
+  backupCorruptDatabaseFiles(cause?.message || cause || "unknown");
+
+  // Recreate an empty database so the server can continue operating.
+  db = openDatabaseFile();
+  initSchema();
+  console.warn(
+    "[SQLite] New SQLite database created after corruption recovery.",
+  );
+}
+
+function getDb() {
+  if (!db) {
+    console.log("[SQLite] Opening database at", dbPath);
+    try {
+      db = openDatabaseFile();
+      initSchema();
+    } catch (err) {
+      if (!isCorruptionError(err)) {
+        throw err;
+      }
+
+      console.error(
+        "[SQLite] Corruption detected while opening database:",
+        err,
+      );
+      recoverFromCorruption(err);
+    }
+  }
+  return db;
 }
 
 function initSchema() {
-    if (!db) throw new Error('Database not initialized');
+  if (!db) throw new Error("Database not initialized");
 
-    // Categories (Groups)
-    db.exec(`
+  // Categories (Groups)
+  db.exec(`
         CREATE TABLE IF NOT EXISTS categories (
             id TEXT PRIMARY KEY, -- Composite key: sourceId:categoryId
             source_id INTEGER NOT NULL,
@@ -42,8 +132,8 @@ function initSchema() {
         CREATE INDEX IF NOT EXISTS idx_categories_source_type ON categories(source_id, type);
     `);
 
-    // Playlist Items (Channels, Movies, Series, Episodes)
-    db.exec(`
+  // Playlist Items (Channels, Movies, Series, Episodes)
+  db.exec(`
         CREATE TABLE IF NOT EXISTS playlist_items (
             id TEXT PRIMARY KEY, -- Composite key: sourceId:itemId
             source_id INTEGER NOT NULL,
@@ -73,9 +163,9 @@ function initSchema() {
         CREATE INDEX IF NOT EXISTS idx_items_category ON playlist_items(source_id, category_id);
     `);
 
-    // EPG Programs
-    // Optimized for range queries
-    db.exec(`
+  // EPG Programs
+  // Optimized for range queries
+  db.exec(`
         CREATE TABLE IF NOT EXISTS epg_programs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             channel_id TEXT NOT NULL, -- matches playlist_items.id if possible, or mapping key
@@ -90,8 +180,8 @@ function initSchema() {
         CREATE INDEX IF NOT EXISTS idx_epg_cleanup ON epg_programs(end_time); -- For deleting old programs
     `);
 
-    // Sync Status
-    db.exec(`
+  // Sync Status
+  db.exec(`
         CREATE TABLE IF NOT EXISTS sync_status (
             source_id INTEGER NOT NULL,
             type TEXT NOT NULL, -- 'live', 'vod', 'series', 'epg'
@@ -102,8 +192,8 @@ function initSchema() {
         );
     `);
 
-    // User Favorites (per-user)
-    db.exec(`
+  // User Favorites (per-user)
+  db.exec(`
         CREATE TABLE IF NOT EXISTS favorites (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -117,8 +207,8 @@ function initSchema() {
         CREATE INDEX IF NOT EXISTS idx_favorites_user_type ON favorites(user_id, item_type);
     `);
 
-    // Watch History (per-user)
-    db.exec(`
+  // Watch History (per-user)
+  db.exec(`
         CREATE TABLE IF NOT EXISTS watch_history (
             id TEXT PRIMARY KEY, -- Composite key: user_id:item_id
             user_id INTEGER NOT NULL,
@@ -135,82 +225,107 @@ function initSchema() {
         CREATE INDEX IF NOT EXISTS idx_history_user_item ON watch_history(user_id, item_id);
     `);
 
-    // Migration: Add source_id column if missing (for existing databases)
-    try {
-        db.exec(`ALTER TABLE watch_history ADD COLUMN source_id INTEGER`);
-        console.log('[SQLite] Added source_id column to watch_history');
-    } catch (e) {
-        // Column already exists, ignore
-    }
+  // Watch Events (append-only analytics timeline)
+  db.exec(`
+        CREATE TABLE IF NOT EXISTS watch_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            source_id INTEGER,
+            item_type TEXT NOT NULL,
+            item_id TEXT NOT NULL,
+            event_type TEXT NOT NULL, -- 'session_start', 'progress_ping', 'ended'
+            created_at INTEGER NOT NULL,
+            meta JSON
+        );
+        CREATE INDEX IF NOT EXISTS idx_watch_events_time ON watch_events(created_at);
+        CREATE INDEX IF NOT EXISTS idx_watch_events_user_time ON watch_events(user_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_watch_events_source_time ON watch_events(source_id, created_at DESC);
+    `);
 
-    console.log('[SQLite] Schema initialized');
+  // Migration: Add source_id column if missing (for existing databases)
+  try {
+    db.exec(`ALTER TABLE watch_history ADD COLUMN source_id INTEGER`);
+    console.log("[SQLite] Added source_id column to watch_history");
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
+  console.log("[SQLite] Schema initialized");
 }
 
 // ============================================================
 // Favorites CRUD Operations
 // ============================================================
 const favorites = {
-    getAll(userId, sourceId = null, itemType = null) {
-        const db = getDb();
-        let sql = 'SELECT * FROM favorites WHERE user_id = ?';
-        const params = [userId];
+  getAll(userId, sourceId = null, itemType = null) {
+    const db = getDb();
+    let sql = "SELECT * FROM favorites WHERE user_id = ?";
+    const params = [userId];
 
-        if (sourceId) {
-            sql += ' AND source_id = ?';
-            params.push(sourceId);
-        }
-        if (itemType) {
-            sql += ' AND item_type = ?';
-            params.push(itemType);
-        }
+    if (sourceId) {
+      sql += " AND source_id = ?";
+      params.push(sourceId);
+    }
+    if (itemType) {
+      sql += " AND item_type = ?";
+      params.push(itemType);
+    }
 
-        sql += ' ORDER BY created_at DESC';
-        return db.prepare(sql).all(...params);
-    },
+    sql += " ORDER BY created_at DESC";
+    return db.prepare(sql).all(...params);
+  },
 
-    add(userId, sourceId, itemId, itemType = 'channel') {
-        const db = getDb();
-        const stmt = db.prepare(`
+  add(userId, sourceId, itemId, itemType = "channel") {
+    const db = getDb();
+    const stmt = db.prepare(`
             INSERT OR IGNORE INTO favorites (user_id, source_id, item_id, item_type)
             VALUES (?, ?, ?, ?)
         `);
-        const result = stmt.run(userId, sourceId, itemId, itemType);
-        return result.changes > 0;
-    },
+    const result = stmt.run(userId, sourceId, itemId, itemType);
+    return result.changes > 0;
+  },
 
-    remove(userId, sourceId, itemId, itemType = 'channel') {
-        const db = getDb();
-        const stmt = db.prepare(`
+  remove(userId, sourceId, itemId, itemType = "channel") {
+    const db = getDb();
+    const stmt = db.prepare(`
             DELETE FROM favorites 
             WHERE user_id = ? AND source_id = ? AND item_id = ? AND item_type = ?
         `);
-        const result = stmt.run(userId, sourceId, itemId, itemType);
-        return result.changes > 0;
-    },
+    const result = stmt.run(userId, sourceId, itemId, itemType);
+    return result.changes > 0;
+  },
 
-    isFavorite(userId, sourceId, itemId, itemType = 'channel') {
-        const db = getDb();
-        const row = db.prepare(`
+  isFavorite(userId, sourceId, itemId, itemType = "channel") {
+    const db = getDb();
+    const row = db
+      .prepare(
+        `
             SELECT 1 FROM favorites 
             WHERE user_id = ? AND source_id = ? AND item_id = ? AND item_type = ?
-        `).get(userId, sourceId, itemId, itemType);
-        return !!row;
-    },
+        `,
+      )
+      .get(userId, sourceId, itemId, itemType);
+    return !!row;
+  },
 
-    // Get all favorites for a user, grouped by type (for bulk checks)
-    getAllAsSet(userId) {
-        const db = getDb();
-        const rows = db.prepare('SELECT source_id, item_id, item_type FROM favorites WHERE user_id = ?').all(userId);
-        const set = new Set();
-        for (const row of rows) {
-            set.add(`${row.source_id}:${row.item_id}:${row.item_type}`);
-        }
-        return set;
+  // Get all favorites for a user, grouped by type (for bulk checks)
+  getAllAsSet(userId) {
+    const db = getDb();
+    const rows = db
+      .prepare(
+        "SELECT source_id, item_id, item_type FROM favorites WHERE user_id = ?",
+      )
+      .all(userId);
+    const set = new Set();
+    for (const row of rows) {
+      set.add(`${row.source_id}:${row.item_id}:${row.item_type}`);
     }
+    return set;
+  },
 };
 
 module.exports = {
-    getDb,
-    initSchema,
-    favorites
+  getDb,
+  initSchema,
+  favorites,
 };

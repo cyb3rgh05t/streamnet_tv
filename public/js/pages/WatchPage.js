@@ -325,7 +325,34 @@ class WatchPage {
     this.showOverlay();
 
     // Start watch history tracking
+    this.logSessionStart();
     this.startHistoryTracking();
+  }
+
+  async logSessionStart() {
+    if (!this.content) return;
+
+    try {
+      await window.API.request("POST", "/history", {
+        id: this.content.id,
+        type: this.content.type === "movie" ? "movie" : "episode",
+        sourceId: this.content.sourceId,
+        progress: 0,
+        duration: 0,
+        eventType: "session_start",
+        data: {
+          title: this.content.title || "Unknown Title",
+          subtitle:
+            this.content.subtitle ||
+            (this.content.type === "movie" ? "Movie" : "Series"),
+          poster: this.content.poster,
+          sourceId: this.content.sourceId,
+          seriesId: this.content.seriesId || null,
+        },
+      });
+    } catch (err) {
+      console.warn("[History] Failed to log session start:", err);
+    }
   }
 
   /**

@@ -266,7 +266,7 @@ const API = {
 
   // Admin dashboard
   admin: {
-    getStats: () => API.request("GET", "/admin/stats"),
+    getStats: () => API.request("GET", `/admin/stats?_=${Date.now()}`),
   },
 };
 

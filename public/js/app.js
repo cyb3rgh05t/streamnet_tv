@@ -147,10 +147,21 @@ class App {
 
     // Mobile menu toggle
     const mobileMenuToggle = document.getElementById("mobile-menu-toggle");
+    const sidebarToggle = document.getElementById("sidebar-toggle");
     const navbarMenu = document.getElementById("navbar-menu");
     const navbar = document.querySelector(".navbar");
     const prefersCollapsedNavKey = "streamnet_nav_collapsed";
     const isDesktopOrTablet = () => window.innerWidth > 640;
+
+    const syncSidebarToggle = () => {
+      if (!sidebarToggle || !navbar) return;
+      const collapsed = navbar.classList.contains("collapsed");
+      sidebarToggle.classList.toggle("is-collapsed", collapsed);
+      sidebarToggle.setAttribute(
+        "aria-label",
+        collapsed ? "Sidebar öffnen" : "Sidebar schließen",
+      );
+    };
 
     const setNavbarCollapsed = (collapsed, persist = true) => {
       if (!navbar) return;
@@ -162,9 +173,7 @@ class App {
       }
 
       navbar.classList.toggle("collapsed", Boolean(collapsed));
-      if (!collapsed) {
-        navbar.classList.remove("hover-open");
-      }
+      navbar.classList.remove("hover-open");
 
       if (persist) {
         localStorage.setItem(
@@ -172,27 +181,18 @@ class App {
           collapsed ? "true" : "false",
         );
       }
+
+      syncSidebarToggle();
     };
 
     if (window.innerWidth > 640) {
-      const storedCollapsed = localStorage.getItem(prefersCollapsedNavKey);
-      const defaultCollapsed = window.innerWidth <= 1366;
-      const shouldCollapse =
-        storedCollapsed === null
-          ? defaultCollapsed
-          : storedCollapsed === "true";
-      setNavbarCollapsed(shouldCollapse, false);
+      setNavbarCollapsed(
+        localStorage.getItem(prefersCollapsedNavKey) === "true",
+        false,
+      );
+    } else {
+      syncSidebarToggle();
     }
-
-    navbar?.addEventListener("mouseenter", () => {
-      if (isDesktopOrTablet() && navbar.classList.contains("collapsed")) {
-        navbar.classList.add("hover-open");
-      }
-    });
-
-    navbar?.addEventListener("mouseleave", () => {
-      navbar.classList.remove("hover-open");
-    });
 
     window.addEventListener("resize", () => {
       if (isDesktopOrTablet()) {
@@ -200,8 +200,18 @@ class App {
         setNavbarCollapsed(stored, false);
       } else {
         navbar?.classList.remove("collapsed", "hover-open");
+        syncSidebarToggle();
       }
     });
+
+    if (sidebarToggle) {
+      sidebarToggle.addEventListener("click", (event) => {
+        event.preventDefault();
+        if (!isDesktopOrTablet()) return;
+        const isCollapsed = navbar?.classList.contains("collapsed");
+        setNavbarCollapsed(!isCollapsed);
+      });
+    }
 
     if (mobileMenuToggle && navbarMenu) {
       mobileMenuToggle.addEventListener("click", () => {
@@ -212,6 +222,10 @@ class App {
       // Close menu when a nav link is clicked
       document.querySelectorAll(".nav-link").forEach((link) => {
         link.addEventListener("click", () => {
+          if (isDesktopOrTablet() && navbar?.classList.contains("collapsed")) {
+            setNavbarCollapsed(false);
+          }
+
           mobileMenuToggle.classList.remove("active");
           navbarMenu.classList.remove("active");
         });
