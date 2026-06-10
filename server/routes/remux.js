@@ -21,8 +21,6 @@ function probeAudioCodec(url, ffprobePath, userAgent) {
         "2000000",
         "-analyzeduration",
         "3000000",
-        url,
-      ];
 
       const proc = spawn(ffprobePath, args);
       let stdout = "";
@@ -87,8 +85,6 @@ router.get("/", async (req, res) => {
     "5000000",
     "-analyzeduration",
     "5000000",
-    "-http_persistent",
-    "0",
     // Error resilience: discard corrupt packets, generate timestamps, ignore DTS, no buffering
     "-fflags",
     "+genpts+discardcorrupt+igndts+nobuffer",

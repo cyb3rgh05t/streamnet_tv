@@ -223,8 +223,6 @@ class TranscodeSession extends EventEmitter {
       String(this.options.probeSize),
       "-analyzeduration",
       String(this.options.analyzeDuration),
-      "-http_persistent",
-      "0",
       "-fflags",
       "+genpts+discardcorrupt",
       "-err_detect",

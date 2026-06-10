@@ -227,8 +227,6 @@ router.get("/", async (req, res) => {
     "2000000", // 2MB (reduced from 5MB)
     "-analyzeduration",
     "3000000", // 3 seconds (reduced from 10s)
-    "-http_persistent",
-    "0",
     // Error resilience: generate timestamps, discard corrupt packets
     "-fflags",
     "+genpts+discardcorrupt+nobuffer",
