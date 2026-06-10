@@ -21,6 +21,8 @@ function probeAudioCodec(url, ffprobePath, userAgent) {
         "2000000",
         "-analyzeduration",
         "3000000",
+        url,
+      ];
 
       const proc = spawn(ffprobePath, args);
       let stdout = "";
