@@ -254,7 +254,9 @@ class App {
 
       const isMobile = isMobileSidebarViewport();
       const drawerOpen = Boolean(channelSidebar?.classList.contains("active"));
-      const collapsed = Boolean(channelSidebar?.classList.contains("collapsed"));
+      const collapsed = Boolean(
+        channelSidebar?.classList.contains("collapsed"),
+      );
       const isOpen = isMobile ? drawerOpen : !collapsed;
 
       const label = channelToggleBtn.querySelector("span");
