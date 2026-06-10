@@ -44,6 +44,16 @@ function probeStream(url, ffprobePath, userAgent = null, timeout = 15000) {
       "5000000",
       "-analyzeduration",
       "5000000",
+      "-http_persistent",
+      "0",
+      "-reconnect",
+      "1",
+      "-reconnect_streamed",
+      "1",
+      "-reconnect_on_http_error",
+      "4xx,5xx",
+      "-reconnect_delay_max",
+      "10",
       url,
     ];
 

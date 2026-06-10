@@ -30,6 +30,7 @@ class VideoPlayer {
     this.isUsingProxy = false;
     this.currentUrl = null;
     this.settingsLoaded = false;
+    this.playRequestToken = 0;
     this.tmdbCache = new Map();
     this.tmdbLookupToken = 0;
     this.tmdbTransitionTimer = null;
@@ -911,19 +912,17 @@ class VideoPlayer {
    */
   async stopTranscodeSession() {
     if (this.currentSessionId) {
-      console.log(
-        "[Player] Stopping transcode session:",
-        this.currentSessionId,
-      );
+      const sessionId = this.currentSessionId;
+      console.log("[Player] Stopping transcode session:", sessionId);
       try {
-        // Fire and forget cleanup
-        API.request("DELETE", `/transcode/${this.currentSessionId}`).catch(
-          () => {},
-        );
+        await API.request("DELETE", `/transcode/${sessionId}`);
       } catch (err) {
         console.error("Failed to stop session:", err);
+      } finally {
+        if (this.currentSessionId === sessionId) {
+          this.currentSessionId = null;
+        }
       }
-      this.currentSessionId = null;
     }
   }
 
@@ -931,13 +930,15 @@ class VideoPlayer {
    * Play a channel
    */
   async play(channel, streamUrl) {
+    const requestToken = ++this.playRequestToken;
     this.currentChannel = channel;
 
     try {
       // Stop any WatchPage playback (movies/series) before starting Live TV
       window.app?.pages?.watch?.stop?.();
 
-      // Stop current playback
+      // Stop current playback and await session cleanup to avoid duplicate FFmpeg sessions.
+      await this.stopTranscodeSession();
       this.stop();
       this.updateTranscodeStatus("hidden");
 
@@ -959,6 +960,7 @@ class VideoPlayer {
             "GET",
             `/probe?url=${encodeURIComponent(streamUrl)}`,
           );
+          if (requestToken !== this.playRequestToken) return;
           console.log(
             `[Player] Probe result: video=${info.video}, audio=${info.audio}, ${info.width}x${info.height}, compatible=${info.compatible}`,
           );
@@ -1022,6 +1024,7 @@ class VideoPlayer {
               audioCodec: info.audio,
               audioChannels: info.audioChannels,
             });
+            if (requestToken !== this.playRequestToken) return;
             this.currentUrl = playlistUrl; // Update currentUrl for HLS reload
 
             this.playHls(playlistUrl);
@@ -1078,6 +1081,7 @@ class VideoPlayer {
         const playlistUrl = await this.startTranscodeSession(streamUrl, {
           videoMode: "encode",
         });
+        if (requestToken !== this.playRequestToken) return;
         this.currentUrl = playlistUrl;
 
         // Load HLS
@@ -1138,6 +1142,7 @@ class VideoPlayer {
           videoMode: "copy",
           videoCodec,
         });
+        if (requestToken !== this.playRequestToken) return;
         this.currentUrl = playlistUrl;
 
         console.log("[Player] Playing transcoded HLS stream:", playlistUrl);

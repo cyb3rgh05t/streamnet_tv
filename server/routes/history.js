@@ -56,6 +56,7 @@ router.post("/", (req, res) => {
       data,
       sourceId,
       eventType,
+      playbackMode,
     } = req.body;
 
     if (!id || !type) {
@@ -130,6 +131,9 @@ router.post("/", (req, res) => {
           JSON.stringify({
             progress: progress || 0,
             duration: duration || 0,
+            playbackMode: String(
+              playbackMode || data?.playbackMode || "unknown",
+            ),
           }),
         );
       }

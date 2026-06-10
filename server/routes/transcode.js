@@ -34,6 +34,7 @@ router.post("/session", async (req, res) => {
     seekOffset,
     videoMode,
     videoCodec,
+    videoHeight,
     audioCodec,
     audioChannels,
     probeSize,
@@ -51,9 +52,10 @@ router.post("/session", async (req, res) => {
   const parsedProbeSize = Number(probeSize);
   const parsedAnalyzeDuration = Number(analyzeDuration);
   const parsedHlsTime = Number(hlsTime);
+  const parsedVideoHeight = Number(videoHeight);
 
   try {
-    const session = await transcodeSession.createSession(url, {
+    const session = await transcodeSession.getOrCreateSession(url, {
       ffmpegPath,
       userAgent,
       seekOffset: seekOffset || 0,
@@ -67,6 +69,10 @@ router.post("/session", async (req, res) => {
       upscaleTarget: settings.upscaleTarget || "1080p",
       videoMode: videoMode, // 'copy' or 'encode'
       videoCodec: videoCodec, // 'h264', 'hevc', etc.
+      videoHeight:
+        Number.isFinite(parsedVideoHeight) && parsedVideoHeight > 0
+          ? parsedVideoHeight
+          : undefined,
       audioCodec: audioCodec, // 'aac', 'ac3', etc.
       audioChannels: audioChannels, // number of channels (2=stereo)
       probeSize:
@@ -221,6 +227,8 @@ router.get("/", async (req, res) => {
     "2000000", // 2MB (reduced from 5MB)
     "-analyzeduration",
     "3000000", // 3 seconds (reduced from 10s)
+    "-http_persistent",
+    "0",
     // Error resilience: generate timestamps, discard corrupt packets
     "-fflags",
     "+genpts+discardcorrupt+nobuffer",
@@ -235,8 +243,10 @@ router.get("/", async (req, res) => {
     "1",
     "-reconnect_streamed",
     "1",
+    "-reconnect_on_http_error",
+    "4xx,5xx",
     "-reconnect_delay_max",
-    "3",
+    "10",
     // Prevent Range/HEAD requests that some providers reject with 405
     "-seekable",
     "0",

@@ -3,6 +3,48 @@ const router = express.Router();
 const { spawn } = require("child_process");
 const db = require("../db");
 
+function probeAudioCodec(url, ffprobePath, userAgent) {
+  return new Promise((resolve) => {
+    try {
+      const args = [
+        "-v",
+        "error",
+        "-user_agent",
+        userAgent,
+        "-select_streams",
+        "a:0",
+        "-show_entries",
+        "stream=codec_name",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
+        "-probesize",
+        "2000000",
+        "-analyzeduration",
+        "3000000",
+        url,
+      ];
+
+      const proc = spawn(ffprobePath, args);
+      let stdout = "";
+
+      proc.stdout.on("data", (chunk) => {
+        stdout += String(chunk || "");
+      });
+
+      proc.on("close", () => {
+        const codec = String(stdout || "")
+          .trim()
+          .toLowerCase();
+        resolve(codec || null);
+      });
+
+      proc.on("error", () => resolve(null));
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
 /**
  * Remux stream (container conversion only)
  * GET /api/remux?url=...
@@ -20,6 +62,7 @@ router.get("/", async (req, res) => {
   }
 
   const ffmpegPath = req.app.locals.ffmpegPath || "ffmpeg";
+  const ffprobePath = req.app.locals.ffprobePath || "ffprobe";
 
   // Get User-Agent from global settings (admin-controlled)
   const settings = await db.settings.get();
@@ -27,6 +70,9 @@ router.get("/", async (req, res) => {
 
   console.log(`[Remux] Starting remux for: ${url}`);
   console.log(`[Remux] Using User-Agent: ${settings.userAgentPreset}`);
+
+  const detectedAudioCodec = await probeAudioCodec(url, ffprobePath, userAgent);
+  const isAacAudio = detectedAudioCodec === "aac";
 
   // FFmpeg arguments for pure remux (no encoding)
   // Very lightweight - just changes container from TS to fragmented MP4
@@ -36,13 +82,13 @@ router.get("/", async (req, res) => {
     "warning",
     "-user_agent",
     userAgent,
-    "-user_agent",
-    userAgent,
     // Standard probe size to handle complex containers (MKV) correctly
     "-probesize",
     "5000000",
     "-analyzeduration",
     "5000000",
+    "-http_persistent",
+    "0",
     // Error resilience: discard corrupt packets, generate timestamps, ignore DTS, no buffering
     "-fflags",
     "+genpts+discardcorrupt+igndts+nobuffer",
@@ -57,8 +103,10 @@ router.get("/", async (req, res) => {
     "1",
     "-reconnect_streamed",
     "1",
+    "-reconnect_on_http_error",
+    "4xx,5xx",
     "-reconnect_delay_max",
-    "5",
+    "10",
     // Prevent Range/HEAD requests that some providers reject with 405
     "-seekable",
     "0",
@@ -79,9 +127,6 @@ router.get("/", async (req, res) => {
     // Ensure extradata is correctly extracted/converted (fixes Annex B -> AVCC issues in Firefox)
     "-bsf:v",
     "dump_extra",
-    // NOTE: We intentionally do NOT use -bsf:a aac_adtstoasc here
-    // That filter only works for AAC audio and breaks AC3/EAC3/MP3.
-    // If AAC audio from MPEG-TS fails in MP4, use /api/transcode instead.
     // Handle timestamp discontinuities at output
     "-fps_mode",
     "passthrough",
@@ -94,6 +139,14 @@ router.get("/", async (req, res) => {
     "frag_keyframe+empty_moov+default_base_moof",
     "-", // Output to stdout
   ];
+
+  // Apply AAC ADTS -> ASC bitstream fix only for AAC to avoid breaking AC3/EAC3/MP3.
+  if (isAacAudio) {
+    const outputIndex = args.lastIndexOf("-");
+    if (outputIndex > -1) {
+      args.splice(outputIndex, 0, "-bsf:a", "aac_adtstoasc");
+    }
+  }
 
   console.log(`[Remux] Full command: ${ffmpegPath} ${args.join(" ")}`);
 

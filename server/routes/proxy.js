@@ -6,6 +6,7 @@ const { getDb } = require("../db/sqlite"); // Import SQLite
 const xtreamApi = require("../services/xtreamApi");
 const epgParser = require("../services/epgParser");
 const cache = require("../services/cache");
+const { normalizeSourceUrl } = require("../services/urlNormalizer");
 const path = require("path");
 const fs = require("fs");
 const http = require("http");
@@ -306,7 +307,7 @@ router.get("/xtream/:sourceId/stream/:streamId/:type", async (req, res) => {
     // Format: http://server:port/series/username/password/streamId.container (for series)
 
     let streamUrl;
-    const baseUrl = source.url.replace(/\/$/, ""); // Remove trailing slash
+    const baseUrl = normalizeSourceUrl(source.url);
 
     if (type === "live") {
       streamUrl = `${baseUrl}/live/${source.username}/${source.password}/${streamId}.${container}`;

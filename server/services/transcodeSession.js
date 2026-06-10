@@ -82,6 +82,7 @@ class TranscodeSession extends EventEmitter {
       probeSize: toPositiveNumberOr(options.probeSize, 5000000),
       analyzeDuration: toPositiveNumberOr(options.analyzeDuration, 5000000),
       hlsTime: toPositiveNumberOr(options.hlsTime, SEGMENT_DURATION),
+      videoHeight: toPositiveNumberOr(options.videoHeight, 0),
       hwEncoder: options.hwEncoder || "software",
       maxResolution: options.maxResolution || "1080p",
       quality: options.quality || "medium",
@@ -222,6 +223,8 @@ class TranscodeSession extends EventEmitter {
       String(this.options.probeSize),
       "-analyzeduration",
       String(this.options.analyzeDuration),
+      "-http_persistent",
+      "0",
       "-fflags",
       "+genpts+discardcorrupt",
       "-err_detect",
@@ -230,8 +233,10 @@ class TranscodeSession extends EventEmitter {
       "1",
       "-reconnect_streamed",
       "1",
+      "-reconnect_on_http_error",
+      "4xx,5xx",
       "-reconnect_delay_max",
-      "3",
+      "10",
     );
 
     // Input seek is significantly faster for VOD resume/jumps and avoids
@@ -239,6 +244,9 @@ class TranscodeSession extends EventEmitter {
     if (this.options.seekOffset > 0) {
       args.push("-ss", String(this.options.seekOffset));
     }
+
+    // Prevent Range/HEAD style seeks some providers reject.
+    args.push("-seekable", "0");
 
     args.push("-i", this.url);
 
@@ -451,8 +459,10 @@ class TranscodeSession extends EventEmitter {
       return target;
     }
 
-    // Otherwise, use max resolution as the cap
-    return resolutionMap[this.options.maxResolution] || 1080;
+    // Otherwise, use max resolution as cap and avoid unintended upscaling.
+    const maxHeight = resolutionMap[this.options.maxResolution] || 1080;
+    const sourceHeight = Number(this.options.videoHeight) || 0;
+    return sourceHeight > 0 ? Math.min(maxHeight, sourceHeight) : maxHeight;
   }
 
   /**

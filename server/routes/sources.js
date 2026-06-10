@@ -6,6 +6,7 @@ const { getDb } = require("../db/sqlite");
 const xtreamApi = require("../services/xtreamApi");
 const syncService = require("../services/syncService");
 const m3uParser = require("../services/m3uParser");
+const { normalizeSourceUrl } = require("../services/urlNormalizer");
 const XTREAM_AUTH_ENABLED =
   String(process.env.XTREAM_AUTH_ENABLED || "").toLowerCase() === "true";
 
@@ -107,8 +108,9 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     const { type, name, url, username, password } = req.body;
+    const normalizedUrl = normalizeSourceUrl(url);
 
-    if (!type || !name || !url) {
+    if (!type || !name || !normalizedUrl) {
       return res
         .status(400)
         .json({ error: "Type, name, and URL are required" });
@@ -123,7 +125,7 @@ router.post("/", async (req, res) => {
       {
         type,
         name,
-        url,
+        url: normalizedUrl,
         username,
         password,
         is_admin_managed_global: adminMode,
@@ -160,12 +162,14 @@ router.put("/:id", async (req, res) => {
     }
 
     const { name, url, username, password } = req.body;
+    const normalizedUrl =
+      url !== undefined ? normalizeSourceUrl(url) : existing.url;
     const ownerScope = isAdmin(req.user) ? null : req.user.id;
     const updated = await sources.update(
       req.params.id,
       {
         name: name || existing.name,
-        url: url || existing.url,
+        url: normalizedUrl || existing.url,
         username: username !== undefined ? username : existing.username,
         password: password !== undefined ? password : existing.password,
       },

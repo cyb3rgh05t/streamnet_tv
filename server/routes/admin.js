@@ -306,6 +306,22 @@ function round1(n) {
   return Math.round((Number(n) || 0) * 10) / 10;
 }
 
+function normalizePlaybackMode(mode) {
+  const value = String(mode || "").toLowerCase();
+  if (value.includes("direct")) return "direct";
+  if (value.includes("remux")) return "remux";
+  if (value.includes("upscal")) return "upscaling";
+  if (value.includes("audio")) return "audioTranscode";
+  if (
+    value.includes("video") ||
+    value.includes("transcod") ||
+    value.includes("encode")
+  ) {
+    return "videoTranscode";
+  }
+  return "unknown";
+}
+
 function readContainerIoBytes() {
   if (process.platform !== "linux") return null;
 
@@ -774,6 +790,14 @@ router.get("/stats", async (req, res) => {
 
     const watch30d = { labels: [], values: [] };
     const watch12m = { labels: [], values: [] };
+    const playbackModes = {
+      direct: 0,
+      remux: 0,
+      audioTranscode: 0,
+      videoTranscode: 0,
+      upscaling: 0,
+      unknown: 0,
+    };
     const dayRowsEvents = sqlite
       .prepare(
         `
@@ -801,6 +825,57 @@ router.get("/stats", async (req, res) => {
         `,
       )
       .all(nowMs - 370 * 86400000);
+
+    const playbackRows = sqlite
+      .prepare(
+        `
+          SELECT created_at, meta
+          FROM watch_events
+          WHERE created_at >= ?
+            AND event_type = 'session_start'
+        `,
+      )
+      .all(nowMs - 30 * 86400000);
+
+    const playbackMonthRows = sqlite
+      .prepare(
+        `
+          SELECT created_at
+          FROM watch_events
+          WHERE created_at >= ?
+            AND event_type = 'session_start'
+        `,
+      )
+      .all(nowMs - 370 * 86400000);
+
+    const playbackDayMap = new Map();
+    const playbackMonthMap = new Map();
+
+    for (const row of playbackRows) {
+      let parsed = null;
+      try {
+        parsed = row?.meta ? JSON.parse(row.meta) : null;
+      } catch {
+        parsed = null;
+      }
+
+      const ts = Number(row?.created_at) || 0;
+      if (ts > 0) {
+        const dayKey = new Date(ts).toLocaleDateString("sv-SE");
+        playbackDayMap.set(dayKey, (playbackDayMap.get(dayKey) || 0) + 1);
+      }
+
+      const mode = normalizePlaybackMode(parsed?.playbackMode);
+      playbackModes[mode] += 1;
+    }
+
+    for (const row of playbackMonthRows) {
+      const ts = Number(row?.created_at) || 0;
+      if (ts <= 0) continue;
+      const d = new Date(ts);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      playbackMonthMap.set(key, (playbackMonthMap.get(key) || 0) + 1);
+    }
 
     // Backward-compatible fallback when event timeline is still empty.
     const dayRows = dayRowsEvents.length
@@ -844,9 +919,19 @@ router.get("/stats", async (req, res) => {
     watch30d.labels = recentDays.labels;
     watch30d.values = recentDays.keys.map((k) => dayMap.get(k) || 0);
 
+    const playbackTelemetry30d = {
+      labels: recentDays.labels,
+      values: recentDays.keys.map((k) => playbackDayMap.get(k) || 0),
+    };
+
     const recentMonths = buildRecentMonthKeys(12);
     watch12m.labels = recentMonths.labels;
     watch12m.values = recentMonths.keys.map((k) => monthMap.get(k) || 0);
+
+    const playbackTelemetry12m = {
+      labels: recentMonths.labels,
+      values: recentMonths.keys.map((k) => playbackMonthMap.get(k) || 0),
+    };
 
     const liveServerMetrics = ensureLiveMetricsSampler();
 
@@ -866,6 +951,9 @@ router.get("/stats", async (req, res) => {
       transcode: {
         sessionsTotal: sessions.length,
         sessionsRunning: sessionsRunning,
+      },
+      telemetry: {
+        playbackModes,
       },
       content,
       charts: {
@@ -892,6 +980,26 @@ router.get("/stats", async (req, res) => {
           labels: watchLabels24h,
           values: watchActivity24h,
         },
+        playbackModes: {
+          labels: [
+            "Direct",
+            "Remux",
+            "Audio Transcode",
+            "Video Transcode",
+            "Upscaling",
+            "Unknown",
+          ],
+          values: [
+            playbackModes.direct,
+            playbackModes.remux,
+            playbackModes.audioTranscode,
+            playbackModes.videoTranscode,
+            playbackModes.upscaling,
+            playbackModes.unknown,
+          ],
+        },
+        playbackTelemetryDaily: playbackTelemetry30d,
+        playbackTelemetryMonthly: playbackTelemetry12m,
         watchActivity30d: watch30d,
         watchActivity12m: watch12m,
       },

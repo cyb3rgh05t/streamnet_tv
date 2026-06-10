@@ -86,6 +86,7 @@ class WatchPage {
     this.lastMediaRecoveryAt = 0;
     this.seekingReasons = new Set();
     this.seekingReasonTimers = new Map();
+    this.currentPlaybackMode = "unknown";
 
     this.init();
   }
@@ -333,6 +334,7 @@ class WatchPage {
     if (!this.content) return;
 
     try {
+      const playbackMode = this.normalizePlaybackMode(this.currentPlaybackMode);
       await window.API.request("POST", "/history", {
         id: this.content.id,
         type: this.content.type === "movie" ? "movie" : "episode",
@@ -340,6 +342,7 @@ class WatchPage {
         progress: 0,
         duration: 0,
         eventType: "session_start",
+        playbackMode,
         data: {
           title: this.content.title || "Unknown Title",
           subtitle:
@@ -348,6 +351,7 @@ class WatchPage {
           poster: this.content.poster,
           sourceId: this.content.sourceId,
           seriesId: this.content.seriesId || null,
+          playbackMode,
         },
       });
     } catch (err) {
@@ -492,6 +496,22 @@ class WatchPage {
     this.transcodeStatusEx.classList.remove("hidden");
   }
 
+  normalizePlaybackMode(mode) {
+    const value = String(mode || "").toLowerCase();
+    if (value.includes("direct")) return "direct";
+    if (value.includes("remux")) return "remux";
+    if (value.includes("upscal")) return "upscaling";
+    if (value.includes("audio")) return "audioTranscode";
+    if (value.includes("video") || value.includes("transcod")) {
+      return "videoTranscode";
+    }
+    return "unknown";
+  }
+
+  setPlaybackMode(mode) {
+    this.currentPlaybackMode = this.normalizePlaybackMode(mode);
+  }
+
   /**
    * Get quality label from video height
    */
@@ -525,6 +545,7 @@ class WatchPage {
     // Store the URL for copy functionality
     this.currentUrl = url;
     this.playbackStartOffset = 0;
+    this.setPlaybackMode("unknown");
 
     // Stop any existing playback
     this.stop();
@@ -612,6 +633,14 @@ class WatchPage {
             ? "upscaling"
             : "transcoding";
 
+          this.setPlaybackMode(
+            settings.upscaleEnabled
+              ? "upscaling"
+              : videoMode === "copy"
+                ? "audioTranscode"
+                : "videoTranscode",
+          );
+
           this.updateTranscodeStatus(statusMode, statusText);
           const sessionStart = await this.startTranscodeSessionWithFallback(
             url,
@@ -619,6 +648,7 @@ class WatchPage {
               videoMode,
               seekOffset: resumeOffset,
               videoCodec: info.video,
+              videoHeight: info.height,
               audioCodec: info.audio,
               audioChannels: info.audioChannels,
               ...getFastSeekSessionOptions(resumeOffset),
@@ -638,6 +668,7 @@ class WatchPage {
           // Remux (container swap) currently doesn't use session logic, uses direct stream
           // TODO: Move remux to session logic if seeking is needed for TS files
           console.log("[WatchPage] Auto: Using remux (.ts container)");
+          this.setPlaybackMode("remux");
           this.updateTranscodeStatus("remuxing", "Remux (Auto)");
           const finalUrl = `/api/remux?url=${encodeURIComponent(url)}`;
           this.video.src = finalUrl;
@@ -668,6 +699,9 @@ class WatchPage {
       console.log(
         `[WatchPage] ${statusText} enabled. Starting session (encode)...`,
       );
+      this.setPlaybackMode(
+        settings.upscaleEnabled ? "upscaling" : "videoTranscode",
+      );
       this.updateTranscodeStatus(statusMode, statusText);
       const resumeOffset = Math.max(0, Number(this.resumeTime) || 0);
       const sessionStart = await this.startTranscodeSessionWithFallback(url, {
@@ -689,10 +723,12 @@ class WatchPage {
       console.log(
         "[WatchPage] Force Audio Transcode enabled. Starting session (copy)...",
       );
+      this.setPlaybackMode("audioTranscode");
       this.updateTranscodeStatus("transcoding", "Transcoding (Audio)");
 
       // Probe to get video codec for HEVC tag handling
       let videoCodec = "unknown";
+      let videoHeight = 0;
       try {
         const ua =
           settings.userAgentPreset === "custom"
@@ -703,6 +739,7 @@ class WatchPage {
           `/probe?url=${encodeURIComponent(url)}&ua=${encodeURIComponent(ua || "")}`,
         );
         videoCodec = info.video;
+        videoHeight = Number(info.height) || 0;
       } catch (e) {
         console.warn("Probe failed for force audio, assuming h264");
       }
@@ -711,6 +748,7 @@ class WatchPage {
       const sessionStart = await this.startTranscodeSessionWithFallback(url, {
         videoMode: "copy",
         videoCodec,
+        videoHeight,
         seekOffset: resumeOffset,
         ...getFastSeekSessionOptions(resumeOffset),
       });
@@ -727,6 +765,7 @@ class WatchPage {
     // Priority 2: Force Remux for raw TS streams
     if (settings.forceRemux && isRawTs) {
       console.log("[WatchPage] Force Remux enabled");
+      this.setPlaybackMode("remux");
       this.updateTranscodeStatus("remuxing", "Remux (Force)");
       const finalUrl = `/api/remux?url=${encodeURIComponent(url)}`;
       this.video.src = finalUrl;
@@ -751,10 +790,12 @@ class WatchPage {
 
     // Use HLS.js for HLS streams
     if (looksLikeHls && Hls.isSupported()) {
+      this.setPlaybackMode("direct");
       this.updateTranscodeStatus("direct", "Direct HLS");
       this.playHls(finalUrl);
     } else {
       // Direct playback for mp4/mkv/avi
+      this.setPlaybackMode("direct");
       this.updateTranscodeStatus("direct", "Direct Play");
       this.video.src = finalUrl;
       this.video.play().catch((e) => {
