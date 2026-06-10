@@ -245,40 +245,53 @@ class App {
     const channelSidebar = document.getElementById("channel-sidebar");
     const channelOverlay = document.getElementById("channel-sidebar-overlay");
 
-    const isMobileSidebarViewport = () => window.innerWidth <= 768;
+    const isMobileSidebarViewport = () => window.innerWidth <= 1024;
     const homeLayout = document.querySelector(".home-layout");
+    const tUi = (key, fallback) => window.I18n?.t?.(key) || fallback;
+
+    const updateChannelToggleState = () => {
+      if (!channelToggleBtn) return;
+
+      const isMobile = isMobileSidebarViewport();
+      const drawerOpen = Boolean(channelSidebar?.classList.contains("active"));
+      const collapsed = Boolean(channelSidebar?.classList.contains("collapsed"));
+      const isOpen = isMobile ? drawerOpen : !collapsed;
+
+      const label = channelToggleBtn.querySelector("span");
+      if (label) {
+        label.textContent = isOpen
+          ? tUi("live.hideGroups", "Hide Groups")
+          : tUi("live.showGroups", "Groups");
+      }
+
+      channelToggleBtn.title = isOpen
+        ? tUi("live.closeGroupsSidebar", "Close groups sidebar (G)")
+        : tUi("live.openGroupsSidebar", "Open groups sidebar (G)");
+      channelToggleBtn.setAttribute("aria-label", channelToggleBtn.title);
+      channelToggleBtn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+      channelToggleBtn.classList.toggle("is-open", isOpen);
+    };
 
     const setChannelDrawerOpen = (open) => {
       if (!channelSidebar || !channelOverlay) return;
       channelSidebar.classList.toggle("active", Boolean(open));
       channelOverlay.classList.toggle("active", Boolean(open));
-      channelToggleBtn?.classList.toggle("is-open", Boolean(open));
-      channelToggleBtn?.setAttribute("aria-expanded", open ? "true" : "false");
+      updateChannelToggleState();
     };
 
-    const setSidebarCollapsed = (collapsed) => {
+    const setSidebarCollapsed = (collapsed, { persist = true } = {}) => {
       channelSidebar?.classList.toggle("collapsed", Boolean(collapsed));
       homeLayout?.classList.toggle("sidebar-collapsed", Boolean(collapsed));
-      localStorage.setItem("sidebarCollapsed", collapsed ? "true" : "false");
-
-      if (channelToggleBtn) {
-        const label = channelToggleBtn.querySelector("span");
-        if (label) {
-          label.textContent = collapsed ? "Groups" : "Hide Groups";
-        }
-        channelToggleBtn.title = collapsed
-          ? "Open groups sidebar (G)"
-          : "Close groups sidebar (G)";
-        channelToggleBtn.setAttribute("aria-label", channelToggleBtn.title);
-        channelToggleBtn.setAttribute(
-          "aria-expanded",
-          collapsed ? "false" : "true",
-        );
+      if (persist) {
+        localStorage.setItem("sidebarCollapsed", collapsed ? "true" : "false");
       }
+      updateChannelToggleState();
     };
 
     const toggleLiveSidebar = () => {
       if (isMobileSidebarViewport()) {
+        // Ensure desktop collapsed state never hides the drawer on touch viewports.
+        setSidebarCollapsed(false, { persist: false });
         setChannelDrawerOpen(!channelSidebar?.classList.contains("active"));
         return;
       }
@@ -293,9 +306,12 @@ class App {
         setChannelDrawerOpen(false),
       );
 
-      // Close drawer when a channel is selected
+      // Close drawer when selecting a channel or a group on touch viewports.
       channelSidebar.addEventListener("click", (e) => {
-        if (e.target.closest(".channel-item") && isMobileSidebarViewport()) {
+        if (
+          isMobileSidebarViewport() &&
+          e.target.closest(".channel-item, .group-header")
+        ) {
           // Small delay to let the channel selection happen
           setTimeout(() => {
             setChannelDrawerOpen(false);
@@ -317,15 +333,22 @@ class App {
       setSidebarCollapsed(!isCollapsed);
     });
 
-    // Restore sidebar state from localStorage
-    const sidebarWasCollapsed =
-      localStorage.getItem("sidebarCollapsed") === "true";
-    setSidebarCollapsed(sidebarWasCollapsed);
+    // Default behavior: keep groups sidebar open on desktop.
+    // On touch viewports the drawer remains closed until user opens it.
+    setSidebarCollapsed(false, { persist: true });
+    if (isMobileSidebarViewport()) {
+      setChannelDrawerOpen(false);
+    }
 
     window.addEventListener("resize", () => {
       if (!isMobileSidebarViewport()) {
         setChannelDrawerOpen(false);
+        const collapsed = localStorage.getItem("sidebarCollapsed") === "true";
+        setSidebarCollapsed(collapsed, { persist: false });
+      } else {
+        setSidebarCollapsed(false, { persist: false });
       }
+      updateChannelToggleState();
     });
 
     document.addEventListener("keydown", (e) => {
@@ -373,6 +396,11 @@ class App {
         // Keep the sidebar open for non-content pages.
         if (isDesktopOrTablet()) {
           setNavbarCollapsed(collapseOnNavPages.has(link.dataset.page));
+        }
+
+        // On desktop, always show groups sidebar when entering LiveTV.
+        if (link.dataset.page === "live" && !isMobileSidebarViewport()) {
+          setSidebarCollapsed(false, { persist: true });
         }
       });
     });
@@ -422,6 +450,8 @@ class App {
       } else if (this.currentPage === "live") {
         this.pages.live?.renderLiveEpgPanel?.();
       }
+
+      updateChannelToggleState();
     });
 
     this.setupHoverMarquee();

@@ -60,6 +60,10 @@
       "live.onAir": "ON AIR",
       "live.upNext": "Up Next",
       "live.noChannelSelected": "No channel selected",
+      "live.showGroups": "Groups",
+      "live.hideGroups": "Hide Groups",
+      "live.openGroupsSidebar": "Open groups sidebar (G)",
+      "live.closeGroupsSidebar": "Close groups sidebar (G)",
 
       "guide.title": "TV Guide",
       "guide.earlier": "Earlier",
@@ -363,6 +367,10 @@
       "live.onAir": "LIVE",
       "live.upNext": "Als Nächstes",
       "live.noChannelSelected": "Kein Sender ausgewählt",
+      "live.showGroups": "Gruppen",
+      "live.hideGroups": "Gruppen ausblenden",
+      "live.openGroupsSidebar": "Gruppen-Seitenleiste öffnen (G)",
+      "live.closeGroupsSidebar": "Gruppen-Seitenleiste schließen (G)",
 
       "guide.title": "TV Guide",
       "guide.earlier": "Früher",
