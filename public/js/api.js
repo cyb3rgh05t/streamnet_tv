@@ -267,6 +267,8 @@ const API = {
   // Admin dashboard
   admin: {
     getStats: () => API.request("GET", `/admin/stats?_=${Date.now()}`),
+    getLiveMetrics: () =>
+      API.request("GET", `/admin/live-metrics?_=${Date.now()}`),
   },
 };
 

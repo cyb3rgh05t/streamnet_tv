@@ -6,6 +6,8 @@ class AdminDashboardPage {
   constructor(app) {
     this.app = app;
     this.refreshTimer = null;
+    this.liveMetricsTimer = null;
+    this.liveMetricsLoading = false;
     this.statsLoading = false;
     this.historyRange = "month";
     this.selectedHistoryMonth = "latest";
@@ -52,9 +54,40 @@ class AdminDashboardPage {
     return `${this.formatMemory(usedMb)} / ${this.formatMemory(totalMb)}`;
   }
 
+  formatTrafficRateMbps(valueMbps) {
+    const value = Number(valueMbps) || 0;
+    return `${value.toFixed(1)} Mbps`;
+  }
+
   setText(id, value) {
     const el = document.getElementById(id);
     if (el) el.textContent = String(value);
+  }
+
+  applyLiveMetrics(stats = {}) {
+    this.setText(
+      "admin-stat-uptime",
+      this.formatUptime(stats.server?.uptimeSec),
+    );
+    this.setText(
+      "admin-stat-ram",
+      this.formatMemory(stats.server?.memory?.rssMb ?? 0),
+    );
+
+    const kpiTotalMbps = Number(stats.server?.network?.totalRateMbps);
+    if (Number.isFinite(kpiTotalMbps)) {
+      this.setText(
+        "admin-kpi-traffic",
+        this.formatTrafficRateMbps(kpiTotalMbps),
+      );
+    } else {
+      this.setText(
+        "admin-kpi-traffic",
+        `${stats.server?.network?.rxRateKbps ?? 0} / ${stats.server?.network?.txRateKbps ?? 0} kbps`,
+      );
+    }
+
+    this.renderTrafficCluster("admin-chart-traffic-load", stats);
   }
 
   renderDonut(targetId, labels = [], values = [], palette = []) {
@@ -589,14 +622,7 @@ class AdminDashboardPage {
     const host = document.getElementById(targetId);
     if (!host) return;
 
-    const rxMbpsRaw = Number(stats.server?.network?.rxRateMbps);
-    const txMbpsRaw = Number(stats.server?.network?.txRateMbps);
-    const rxMbps = Number.isFinite(rxMbpsRaw)
-      ? rxMbpsRaw
-      : (Number(stats.server?.network?.rxRateKbps) || 0) / 8000;
-    const txMbps = Number.isFinite(txMbpsRaw)
-      ? txMbpsRaw
-      : (Number(stats.server?.network?.txRateKbps) || 0) / 8000;
+    const totalTrafficMbps = Number(stats.server?.network?.totalRateMbps) || 0;
 
     const cpuUsagePct = Number(stats.server?.cpu?.usagePct);
     const cpuPct = Number.isFinite(cpuUsagePct)
@@ -622,17 +648,7 @@ class AdminDashboardPage {
     const trafficPctRaw = Number(stats.server?.network?.utilizationPct);
     const trafficPct = Number.isFinite(trafficPctRaw)
       ? this.clampPercent(trafficPctRaw)
-      : this.clampPercent(((rxMbps + txMbps) / 60) * 100);
-
-    const netCapacityMbps = Number(stats.server?.network?.capacityMbps) || 0;
-    const upPct =
-      netCapacityMbps > 0
-        ? this.clampPercent((rxMbps / netCapacityMbps) * 100)
-        : this.clampPercent(rxMbps * 4);
-    const downPct =
-      netCapacityMbps > 0
-        ? this.clampPercent((txMbps / netCapacityMbps) * 100)
-        : this.clampPercent(txMbps * 4);
+      : this.clampPercent((totalTrafficMbps / 60) * 100);
 
     const diskReadMbps = Number(stats.server?.disk?.readRateMBps) || 0;
     const diskWriteMbps = Number(stats.server?.disk?.writeRateMBps) || 0;
@@ -660,18 +676,11 @@ class AdminDashboardPage {
         sub: this.formatMemoryPair(systemUsedMb || 0, systemTotalMb || 0),
       },
       {
-        title: this.tr("admin.trafficUp", {}, "TRAFFIC UP"),
-        pct: upPct,
+        title: this.tr("admin.trafficLoad", {}, "TRAFFIC"),
+        pct: trafficPct,
         color: "#7bdcff",
-        value: `${upPct}%`,
-        sub: `${rxMbps.toFixed(1)} MB/s`,
-      },
-      {
-        title: this.tr("admin.trafficDown", {}, "TRAFFIC DOWN"),
-        pct: downPct,
-        color: "#7cffb3",
-        value: `${downPct}%`,
-        sub: `${txMbps.toFixed(1)} MB/s`,
+        value: `${trafficPct}%`,
+        sub: this.formatTrafficRateMbps(totalTrafficMbps),
       },
       {
         title: this.tr("admin.write", {}, "WRITE"),
@@ -725,7 +734,7 @@ class AdminDashboardPage {
         `,
           )
           .join("")}
-        <div class="admin-traffic-summary">${this.tr("admin.totalTraffic", {}, "Gesamt Traffic")}: ${trafficPct}%</div>
+        <div class="admin-traffic-summary">${this.tr("admin.totalTraffic", {}, "Gesamt Traffic")}: ${this.formatTrafficRateMbps(totalTrafficMbps)}</div>
       </div>
     `;
   }
@@ -917,14 +926,7 @@ class AdminDashboardPage {
       this.updateHistoryMonthSelect(
         stats.charts?.watchActivity30d?.labels || [],
       );
-      this.setText(
-        "admin-stat-uptime",
-        this.formatUptime(stats.server?.uptimeSec),
-      );
-      this.setText(
-        "admin-stat-ram",
-        this.formatMemory(stats.server?.memory?.rssMb ?? 0),
-      );
+      this.applyLiveMetrics(stats);
       this.setText(
         "admin-stat-sessions",
         stats.transcode?.sessionsRunning ?? 0,
@@ -932,19 +934,6 @@ class AdminDashboardPage {
       this.setText("admin-stat-users", stats.users?.total ?? 0);
       this.setText("admin-kpi-content", stats.content?.total ?? 0);
       this.setText("admin-kpi-enabled-sources", stats.sources?.enabled ?? 0);
-      const kpiRxMbps = Number(stats.server?.network?.rxRateMbps);
-      const kpiTxMbps = Number(stats.server?.network?.txRateMbps);
-      if (Number.isFinite(kpiRxMbps) && Number.isFinite(kpiTxMbps)) {
-        this.setText(
-          "admin-kpi-traffic",
-          `${kpiRxMbps.toFixed(1)} / ${kpiTxMbps.toFixed(1)} MB/s`,
-        );
-      } else {
-        this.setText(
-          "admin-kpi-traffic",
-          `${stats.server?.network?.rxRateKbps ?? 0} / ${stats.server?.network?.txRateKbps ?? 0} kbps`,
-        );
-      }
       this.setText(
         "admin-kpi-watch-24h",
         (stats.charts?.watchActivity24h?.values || []).reduce(
@@ -973,9 +962,6 @@ class AdminDashboardPage {
         stats.charts?.contentByType?.values || [],
         ["#ff6b6b", "#ffd166", "#06d6a0"],
       );
-
-      this.renderTrafficCluster("admin-chart-traffic-load", stats);
-
       this.renderHistorySuite(stats);
 
       this.renderUsers7dCard(
@@ -991,11 +977,29 @@ class AdminDashboardPage {
     }
   }
 
+  async refreshLiveMetrics() {
+    if (this.liveMetricsLoading) return;
+    this.liveMetricsLoading = true;
+    try {
+      const liveMetrics = await API.admin.getLiveMetrics();
+      this.applyLiveMetrics(liveMetrics);
+    } catch (err) {
+      console.error("Failed to load live admin metrics:", err);
+    } finally {
+      this.liveMetricsLoading = false;
+    }
+  }
+
   async show() {
     this.renderLayout();
     await this.loadStats();
 
     window.addEventListener("resize", this._onHistoryResize);
+
+    if (this.liveMetricsTimer) clearInterval(this.liveMetricsTimer);
+    this.liveMetricsTimer = setInterval(() => {
+      this.refreshLiveMetrics();
+    }, 1000);
 
     if (this.refreshTimer) clearInterval(this.refreshTimer);
     this.refreshTimer = setInterval(() => {
@@ -1005,6 +1009,11 @@ class AdminDashboardPage {
 
   hide() {
     window.removeEventListener("resize", this._onHistoryResize);
+
+    if (this.liveMetricsTimer) {
+      clearInterval(this.liveMetricsTimer);
+      this.liveMetricsTimer = null;
+    }
 
     if (this.refreshTimer) {
       clearInterval(this.refreshTimer);

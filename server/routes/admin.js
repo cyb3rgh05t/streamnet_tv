@@ -13,6 +13,8 @@ let lastCpuSample = null;
 let lastDiskSample = null;
 let peakNetRateMbps = 1;
 let peakDiskRateMBps = 1;
+let liveMetricsTimer = null;
+let liveMetricsSnapshot = null;
 const configuredNetCapacityMbps = Number(process.env.NETWORK_CAPACITY_MBPS);
 const configuredDiskCapacityMBps = Number(process.env.DISK_RW_CAPACITY_MBPS);
 
@@ -444,6 +446,203 @@ function readWindowsDiskIoRates() {
   }
 }
 
+function buildLiveSystemMetrics() {
+  const mem = process.memoryUsage();
+  const hostTotalBytes = os.totalmem();
+  const hostUsedBytes = Math.max(0, hostTotalBytes - os.freemem());
+  const containerLimitBytes = getContainerMemoryLimitBytes();
+  const containerUsedBytes = getContainerMemoryUsedBytes();
+  const effectiveTotalBytes = containerLimitBytes
+    ? Math.min(hostTotalBytes, containerLimitBytes)
+    : hostTotalBytes;
+  const effectiveUsedBytes = Math.min(
+    effectiveTotalBytes,
+    containerUsedBytes ?? hostUsedBytes,
+  );
+  const effectiveFreeBytes = Math.max(
+    0,
+    effectiveTotalBytes - effectiveUsedBytes,
+  );
+
+  const systemTotalMb = Math.round(effectiveTotalBytes / (1024 * 1024));
+  const systemFreeMb = Math.round(effectiveFreeBytes / (1024 * 1024));
+  const systemUsedMb = Math.round(effectiveUsedBytes / (1024 * 1024));
+
+  const cpuCores = getEffectiveCpuCores();
+  const containerCpuPct = sampleContainerCpuPct(cpuCores);
+  const cpuUsagePct = containerCpuPct ?? sampleSystemCpuPct();
+  const cpuSource = Number.isFinite(containerCpuPct) ? "container" : "system";
+
+  const netNow = readNetworkTotals();
+  const sampledAt = Date.now();
+  let rxRate = 0;
+  let txRate = 0;
+  if (lastNetSample) {
+    const elapsed = Math.max(1, sampledAt - lastNetSample.at) / 1000;
+    rxRate = Math.max(0, netNow.rxBytes - lastNetSample.rxBytes) / elapsed;
+    txRate = Math.max(0, netNow.txBytes - lastNetSample.txBytes) / elapsed;
+  }
+  lastNetSample = {
+    at: sampledAt,
+    rxBytes: netNow.rxBytes,
+    txBytes: netNow.txBytes,
+  };
+
+  const rxRateMbps = (rxRate * 8) / 1_000_000;
+  const txRateMbps = (txRate * 8) / 1_000_000;
+  const totalRateMbps = rxRateMbps + txRateMbps;
+  peakNetRateMbps = Math.max(totalRateMbps, peakNetRateMbps * 0.985, 1);
+  const effectiveNetCapacity =
+    Number.isFinite(configuredNetCapacityMbps) && configuredNetCapacityMbps > 0
+      ? configuredNetCapacityMbps
+      : peakNetRateMbps;
+  const networkUtilizationPct =
+    effectiveNetCapacity > 0
+      ? Math.max(0, Math.min(100, (totalRateMbps / effectiveNetCapacity) * 100))
+      : 0;
+
+  const ioNow = readLinuxDiskIoBytes();
+  let diskReadBps = 0;
+  let diskWriteBps = 0;
+  if (ioNow && lastDiskSample && lastDiskSample.scope === ioNow.scope) {
+    const elapsed = Math.max(1, sampledAt - lastDiskSample.at) / 1000;
+    diskReadBps =
+      Math.max(0, ioNow.readBytes - lastDiskSample.readBytes) / elapsed;
+    diskWriteBps =
+      Math.max(0, ioNow.writeBytes - lastDiskSample.writeBytes) / elapsed;
+  }
+  if (ioNow) {
+    lastDiskSample = {
+      at: sampledAt,
+      readBytes: ioNow.readBytes,
+      writeBytes: ioNow.writeBytes,
+      scope: ioNow.scope,
+    };
+  }
+
+  const windowsDiskIo = readWindowsDiskIoRates();
+  if (!ioNow && windowsDiskIo) {
+    diskReadBps = windowsDiskIo.readBps;
+    diskWriteBps = windowsDiskIo.writeBps;
+  }
+
+  const diskReadMBps = diskReadBps / (1024 * 1024);
+  const diskWriteMBps = diskWriteBps / (1024 * 1024);
+  const diskTotalMBps = diskReadMBps + diskWriteMBps;
+  peakDiskRateMBps = Math.max(diskTotalMBps, peakDiskRateMBps * 0.985, 1);
+  const effectiveDiskCapacity =
+    Number.isFinite(configuredDiskCapacityMBps) &&
+    configuredDiskCapacityMBps > 0
+      ? configuredDiskCapacityMBps
+      : peakDiskRateMBps;
+  const diskUtilizationPct =
+    (ioNow || windowsDiskIo) && effectiveDiskCapacity > 0
+      ? Math.max(
+          0,
+          Math.min(100, (diskTotalMBps / effectiveDiskCapacity) * 100),
+        )
+      : 0;
+  const diskReadUtilizationPct =
+    effectiveDiskCapacity > 0
+      ? Math.max(0, Math.min(100, (diskReadMBps / effectiveDiskCapacity) * 100))
+      : 0;
+  const diskWriteUtilizationPct =
+    effectiveDiskCapacity > 0
+      ? Math.max(
+          0,
+          Math.min(100, (diskWriteMBps / effectiveDiskCapacity) * 100),
+        )
+      : 0;
+
+  return {
+    timestamp: sampledAt,
+    uptimeSec: Math.floor(process.uptime()),
+    nodeVersion: process.version,
+    platform: process.platform,
+    arch: process.arch,
+    pid: process.pid,
+    cpuCores: round1(cpuCores),
+    loadAvg: os.loadavg(),
+    cpu: {
+      usagePct: round1(cpuUsagePct),
+      load1: round1(os.loadavg()[0] || 0),
+      source: cpuSource,
+    },
+    memory: {
+      rssMb: Math.round(mem.rss / (1024 * 1024)),
+      heapUsedMb: Math.round(mem.heapUsed / (1024 * 1024)),
+      heapTotalMb: Math.round(mem.heapTotal / (1024 * 1024)),
+      systemTotalMb,
+      systemFreeMb,
+      systemUsedMb,
+    },
+    network: {
+      rxTotalMb: Math.round(netNow.rxBytes / (1024 * 1024)),
+      txTotalMb: Math.round(netNow.txBytes / (1024 * 1024)),
+      rxRateMbps: round1(rxRateMbps),
+      txRateMbps: round1(txRateMbps),
+      totalRateMbps: round1(totalRateMbps),
+      capacityMbps: round1(effectiveNetCapacity),
+      utilizationPct: round1(networkUtilizationPct),
+      rxRateKbps: Math.round((rxRate * 8) / 1000),
+      txRateKbps: Math.round((txRate * 8) / 1000),
+    },
+    disk: {
+      available: Boolean(ioNow || windowsDiskIo),
+      scope: ioNow?.scope || (windowsDiskIo ? "host" : "none"),
+      readRateMBps: round1(diskReadMBps),
+      writeRateMBps: round1(diskWriteMBps),
+      totalRateMBps: round1(diskTotalMBps),
+      capacityMBps: round1(effectiveDiskCapacity),
+      utilizationPct: round1(diskUtilizationPct),
+      readUtilizationPct: round1(diskReadUtilizationPct),
+      writeUtilizationPct: round1(diskWriteUtilizationPct),
+    },
+  };
+}
+
+function ensureLiveMetricsSampler() {
+  if (!liveMetricsSnapshot) {
+    liveMetricsSnapshot = buildLiveSystemMetrics();
+  }
+
+  if (!liveMetricsTimer) {
+    liveMetricsTimer = setInterval(() => {
+      try {
+        liveMetricsSnapshot = buildLiveSystemMetrics();
+      } catch (err) {
+        console.error("[Admin] Failed to sample live system metrics:", err);
+      }
+    }, 1000);
+
+    if (typeof liveMetricsTimer.unref === "function") {
+      liveMetricsTimer.unref();
+    }
+  }
+
+  return liveMetricsSnapshot;
+}
+
+router.get("/live-metrics", (req, res) => {
+  try {
+    res.set(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, proxy-revalidate",
+    );
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
+
+    const snapshot = ensureLiveMetricsSampler();
+    res.json({
+      timestamp: snapshot?.timestamp || Date.now(),
+      server: snapshot || buildLiveSystemMetrics(),
+    });
+  } catch (err) {
+    console.error("[Admin] Failed to load live metrics:", err);
+    res.status(500).json({ error: "Failed to load live metrics" });
+  }
+});
+
 router.get("/stats", async (req, res) => {
   try {
     res.set(
@@ -649,166 +848,11 @@ router.get("/stats", async (req, res) => {
     watch12m.labels = recentMonths.labels;
     watch12m.values = recentMonths.keys.map((k) => monthMap.get(k) || 0);
 
-    const mem = process.memoryUsage();
-    const hostTotalBytes = os.totalmem();
-    const hostUsedBytes = Math.max(0, hostTotalBytes - os.freemem());
-    const containerLimitBytes = getContainerMemoryLimitBytes();
-    const containerUsedBytes = getContainerMemoryUsedBytes();
-    const effectiveTotalBytes = containerLimitBytes
-      ? Math.min(hostTotalBytes, containerLimitBytes)
-      : hostTotalBytes;
-    const effectiveUsedBytes = Math.min(
-      effectiveTotalBytes,
-      containerUsedBytes ?? hostUsedBytes,
-    );
-    const effectiveFreeBytes = Math.max(
-      0,
-      effectiveTotalBytes - effectiveUsedBytes,
-    );
-
-    const systemTotalMb = Math.round(effectiveTotalBytes / (1024 * 1024));
-    const systemFreeMb = Math.round(effectiveFreeBytes / (1024 * 1024));
-    const systemUsedMb = Math.round(effectiveUsedBytes / (1024 * 1024));
-
-    const cpuCores = getEffectiveCpuCores();
-    const containerCpuPct = sampleContainerCpuPct(cpuCores);
-    const cpuUsagePct = containerCpuPct ?? sampleSystemCpuPct();
-    const cpuSource = Number.isFinite(containerCpuPct) ? "container" : "system";
-
-    const netNow = readNetworkTotals();
-    const sampledAt = Date.now();
-    let rxRate = 0;
-    let txRate = 0;
-    if (lastNetSample) {
-      const elapsed = Math.max(1, sampledAt - lastNetSample.at) / 1000;
-      rxRate = Math.max(0, netNow.rxBytes - lastNetSample.rxBytes) / elapsed;
-      txRate = Math.max(0, netNow.txBytes - lastNetSample.txBytes) / elapsed;
-    }
-    lastNetSample = {
-      at: sampledAt,
-      rxBytes: netNow.rxBytes,
-      txBytes: netNow.txBytes,
-    };
-
-    const rxRateMbps = (rxRate * 8) / 1_000_000;
-    const txRateMbps = (txRate * 8) / 1_000_000;
-    const totalRateMbps = rxRateMbps + txRateMbps;
-    peakNetRateMbps = Math.max(totalRateMbps, peakNetRateMbps * 0.985, 1);
-    const effectiveNetCapacity =
-      Number.isFinite(configuredNetCapacityMbps) &&
-      configuredNetCapacityMbps > 0
-        ? configuredNetCapacityMbps
-        : peakNetRateMbps;
-    const networkUtilizationPct =
-      effectiveNetCapacity > 0
-        ? Math.max(
-            0,
-            Math.min(100, (totalRateMbps / effectiveNetCapacity) * 100),
-          )
-        : 0;
-
-    const ioNow = readLinuxDiskIoBytes();
-    let diskReadBps = 0;
-    let diskWriteBps = 0;
-    if (ioNow && lastDiskSample && lastDiskSample.scope === ioNow.scope) {
-      const elapsed = Math.max(1, sampledAt - lastDiskSample.at) / 1000;
-      diskReadBps =
-        Math.max(0, ioNow.readBytes - lastDiskSample.readBytes) / elapsed;
-      diskWriteBps =
-        Math.max(0, ioNow.writeBytes - lastDiskSample.writeBytes) / elapsed;
-    }
-    if (ioNow) {
-      lastDiskSample = {
-        at: sampledAt,
-        readBytes: ioNow.readBytes,
-        writeBytes: ioNow.writeBytes,
-        scope: ioNow.scope,
-      };
-    }
-
-    const windowsDiskIo = readWindowsDiskIoRates();
-    if (!ioNow && windowsDiskIo) {
-      diskReadBps = windowsDiskIo.readBps;
-      diskWriteBps = windowsDiskIo.writeBps;
-    }
-
-    const diskReadMBps = diskReadBps / (1024 * 1024);
-    const diskWriteMBps = diskWriteBps / (1024 * 1024);
-    const diskTotalMBps = diskReadMBps + diskWriteMBps;
-    peakDiskRateMBps = Math.max(diskTotalMBps, peakDiskRateMBps * 0.985, 1);
-    const effectiveDiskCapacity =
-      Number.isFinite(configuredDiskCapacityMBps) &&
-      configuredDiskCapacityMBps > 0
-        ? configuredDiskCapacityMBps
-        : peakDiskRateMBps;
-    const diskUtilizationPct =
-      (ioNow || windowsDiskIo) && effectiveDiskCapacity > 0
-        ? Math.max(
-            0,
-            Math.min(100, (diskTotalMBps / effectiveDiskCapacity) * 100),
-          )
-        : 0;
-    const diskReadUtilizationPct =
-      effectiveDiskCapacity > 0
-        ? Math.max(
-            0,
-            Math.min(100, (diskReadMBps / effectiveDiskCapacity) * 100),
-          )
-        : 0;
-    const diskWriteUtilizationPct =
-      effectiveDiskCapacity > 0
-        ? Math.max(
-            0,
-            Math.min(100, (diskWriteMBps / effectiveDiskCapacity) * 100),
-          )
-        : 0;
+    const liveServerMetrics = ensureLiveMetricsSampler();
 
     res.json({
       timestamp: Date.now(),
-      server: {
-        uptimeSec: Math.floor(process.uptime()),
-        nodeVersion: process.version,
-        platform: process.platform,
-        arch: process.arch,
-        pid: process.pid,
-        cpuCores: round1(cpuCores),
-        loadAvg: os.loadavg(),
-        cpu: {
-          usagePct: round1(cpuUsagePct),
-          load1: round1(os.loadavg()[0] || 0),
-          source: cpuSource,
-        },
-        memory: {
-          rssMb: Math.round(mem.rss / (1024 * 1024)),
-          heapUsedMb: Math.round(mem.heapUsed / (1024 * 1024)),
-          heapTotalMb: Math.round(mem.heapTotal / (1024 * 1024)),
-          systemTotalMb,
-          systemFreeMb,
-          systemUsedMb,
-        },
-        network: {
-          rxTotalMb: Math.round(netNow.rxBytes / (1024 * 1024)),
-          txTotalMb: Math.round(netNow.txBytes / (1024 * 1024)),
-          rxRateMbps: round1(rxRateMbps),
-          txRateMbps: round1(txRateMbps),
-          totalRateMbps: round1(totalRateMbps),
-          capacityMbps: round1(effectiveNetCapacity),
-          utilizationPct: round1(networkUtilizationPct),
-          rxRateKbps: Math.round((rxRate * 8) / 1000),
-          txRateKbps: Math.round((txRate * 8) / 1000),
-        },
-        disk: {
-          available: Boolean(ioNow || windowsDiskIo),
-          scope: ioNow?.scope || (windowsDiskIo ? "host" : "none"),
-          readRateMBps: round1(diskReadMBps),
-          writeRateMBps: round1(diskWriteMBps),
-          totalRateMBps: round1(diskTotalMBps),
-          capacityMBps: round1(effectiveDiskCapacity),
-          utilizationPct: round1(diskUtilizationPct),
-          readUtilizationPct: round1(diskReadUtilizationPct),
-          writeUtilizationPct: round1(diskWriteUtilizationPct),
-        },
-      },
+      server: liveServerMetrics,
       users: {
         total: users.length,
         admins: usersAdmin,
