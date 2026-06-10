@@ -7540,12 +7540,14 @@ kbd {
   z-index: 2;
 }
 
+.admin-history-line path,
 .admin-history-line polyline {
   fill: none;
   stroke: rgba(194, 199, 211, 0.82);
   stroke-width: 1.2;
-  stroke-dasharray: 0.8 2.4;
+  stroke-dasharray: 2.2 2.8;
   stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .admin-history-line circle {

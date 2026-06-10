@@ -13,7 +13,7 @@ class AdminDashboardPage {
     this.selectedHistoryMonth = "latest";
     this.latestStats = null;
     this.showHistoryTrendline = true;
-    this.playbackHistoryRange = "30d";
+    this.playbackHistoryRange = "month";
     this.selectedPlaybackMonth = "latest";
     this.showPlaybackTrendline = true;
     this._onHistoryResize = () => {
@@ -439,13 +439,33 @@ class AdminDashboardPage {
 
     if (!points.length) return;
 
-    const polyline = svg.querySelector("polyline");
-    if (!polyline) return;
+    const trendPath = svg.querySelector("path");
+    if (!trendPath) return;
 
-    polyline.setAttribute(
-      "points",
-      points.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" "),
-    );
+    const buildSmoothPath = (linePoints) => {
+      if (linePoints.length === 1) {
+        const p = linePoints[0];
+        return `M ${p.x.toFixed(2)} ${p.y.toFixed(2)} L ${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
+      }
+
+      let d = `M ${linePoints[0].x.toFixed(2)} ${linePoints[0].y.toFixed(2)}`;
+      for (let i = 0; i < linePoints.length - 1; i += 1) {
+        const p0 = linePoints[i - 1] || linePoints[i];
+        const p1 = linePoints[i];
+        const p2 = linePoints[i + 1];
+        const p3 = linePoints[i + 2] || p2;
+
+        const cp1x = p1.x + (p2.x - p0.x) / 6;
+        const cp1y = p1.y + (p2.y - p0.y) / 6;
+        const cp2x = p2.x - (p3.x - p1.x) / 6;
+        const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+        d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
+      }
+      return d;
+    };
+
+    trendPath.setAttribute("d", buildSmoothPath(points));
 
     svg.querySelectorAll("circle").forEach((el) => el.remove());
     points.forEach((p) => {
@@ -524,7 +544,7 @@ class AdminDashboardPage {
         <div class="admin-history-y-axis">${yTicks}</div>
         ${
           this.showHistoryTrendline
-            ? `<svg class="admin-history-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline points="" /></svg>`
+            ? `<svg class="admin-history-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="" /></svg>`
             : ""
         }
         <div class="admin-history-daily-bars" style="--history-cols:${points}; --history-gap:${points > 24 ? 4 : 8}px;">${cols}</div>
@@ -729,7 +749,7 @@ class AdminDashboardPage {
         <div class="admin-history-y-axis">${yTicks}</div>
         ${
           this.showPlaybackTrendline
-            ? `<svg class="admin-history-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline points="" /></svg>`
+            ? `<svg class="admin-history-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="" /></svg>`
             : ""
         }
         <div class="admin-history-daily-bars" style="--history-cols:${points}; --history-gap:${points > 24 ? 4 : 8}px;">${cols}</div>
