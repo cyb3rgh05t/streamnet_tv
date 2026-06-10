@@ -7543,17 +7543,16 @@ kbd {
 .admin-history-line path,
 .admin-history-line polyline {
   fill: none;
-  stroke: rgba(194, 199, 211, 0.82);
-  stroke-width: 1.2;
-  stroke-dasharray: 2.2 2.8;
+  stroke: rgba(225, 231, 239, 0.74);
+  stroke-width: 1.05;
+  stroke-dasharray: 3.8 3.2;
   stroke-linecap: round;
   stroke-linejoin: round;
+  filter: drop-shadow(0 0 0.4px rgba(255, 255, 255, 0.18));
 }
 
 .admin-history-line circle {
-  fill: rgba(22, 216, 255, 0.95);
-  stroke: rgba(7, 9, 14, 0.96);
-  stroke-width: 0.8;
+  display: none;
 }
 
 .admin-history-daily-bars {
