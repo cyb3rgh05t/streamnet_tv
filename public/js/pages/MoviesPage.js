@@ -23,6 +23,7 @@ class MoviesPage {
     this.showFavoritesOnly = false;
     this.currentPreplayMovie = null;
     this.currentPreplayResumeTime = 0;
+    this.pendingPreplayMovie = null;
 
     this.preplayScreen = document.getElementById("movies-preplay");
     this.preplayHero = document.getElementById("movies-preplay-hero");
@@ -184,6 +185,12 @@ class MoviesPage {
     if (this.movies.length === 0) {
       await this.loadCategories();
       await this.loadMovies();
+    }
+
+    if (this.pendingPreplayMovie) {
+      const movie = this.pendingPreplayMovie;
+      this.pendingPreplayMovie = null;
+      await this.showMoviePreplay(movie);
     }
   }
 
@@ -1181,10 +1188,14 @@ class MoviesPage {
               description: movie.plot || "",
               year: movie.year || movie.releaseDate?.substring(0, 4),
               rating: movie.rating,
+              duration: movie.runtime
+                ? `${movie.runtime} min`
+                : movie.duration || movie.info?.duration || "",
               sourceId: movie.sourceId,
               categoryId: movie.category_id,
               containerExtension: container,
               resumeTime: Math.max(0, Number(options?.resumeTime) || 0),
+              preplayMovie: movie,
             },
             result.url,
           );

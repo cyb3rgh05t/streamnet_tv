@@ -44,6 +44,10 @@ class VideoPlayer {
     });
   }
 
+  t(key, fallback) {
+    return window.I18n?.t ? window.I18n.t(key) : fallback || key;
+  }
+
   /**
    * Default settings
    */
@@ -61,6 +65,8 @@ class VideoPlayer {
       autoTranscode: true,
       streamFormat: "m3u8",
       epgRefreshInterval: "24",
+      // Native VLC player (Tauri Desktop only) – off by default, user opt-in
+      useNativePlayer: false,
     };
   }
 
@@ -857,11 +863,118 @@ class VideoPlayer {
       });
     }
 
+    // VLC Button (Live Player)
+    const btnVlc = document.getElementById("btn-open-vlc");
+    if (btnVlc) {
+      btnVlc.hidden = !window.__TAURI__;
+    }
+    btnVlc?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.openInVlc();
+    });
+
     // Keyboard controls
     document.addEventListener("keydown", (e) => this.handleKeyboard(e));
 
     // Click on video shows overlay
     this.video.addEventListener("click", () => this.showNowPlayingOverlay());
+  }
+
+  /**
+   * Open the current stream in VLC (desktop only).
+   * Fetches the direct stream URL and passes it to the server-side VLC launcher.
+   */
+  async openInVlc() {
+    if (!window.__TAURI__) {
+      this._showVlcToast("VLC ist nur in der Desktop-App verfügbar.", "error");
+      return;
+    }
+
+    // Determine the raw source URL (bypass HLS/transcode proxy)
+    const ch = this.currentChannel;
+    if (!ch) {
+      this._showVlcToast("Kein Stream aktiv.", "error");
+      return;
+    }
+
+    const btn = document.getElementById("btn-open-vlc");
+    if (btn) btn.disabled = true;
+
+    try {
+      let directUrl = null;
+
+      // Try to get the direct stream URL from the server (Xtream sources)
+      if (ch.source_id && ch.stream_id && ch.stream_type) {
+        try {
+          const type =
+            ch.stream_type === "live"
+              ? "live"
+              : ch.stream_type === "movie"
+                ? "movie"
+                : "series";
+          const container = ch.container_extension || "ts";
+          const data = await API.request(
+            "GET",
+            `/proxy/xtream/${ch.source_id}/stream/${ch.stream_id}/${type}?container=${container}`,
+          );
+          directUrl = data?.url || null;
+        } catch (_) {
+          /* fall through */
+        }
+      }
+
+      // Fallback: use the raw URL stored on the channel or the current playing URL
+      if (!directUrl) {
+        directUrl = ch.stream_url || ch.url || this.currentUrl;
+      }
+
+      if (!directUrl) {
+        this._showVlcToast(
+          "Stream-URL konnte nicht ermittelt werden.",
+          "error",
+        );
+        return;
+      }
+
+      const title = ch.name || ch.title || "StreamNet TV";
+      const resp = await API.request("POST", "/vlc/launch", {
+        url: directUrl,
+        title,
+      });
+
+      if (resp?.ok) {
+        this._showVlcToast(`▶ In VLC geöffnet: ${title}`);
+      } else {
+        this._showVlcToast(
+          resp?.error || "VLC konnte nicht gestartet werden.",
+          "error",
+        );
+      }
+    } catch (err) {
+      const hint =
+        err?.message?.includes("404") || err?.message?.includes("not found")
+          ? "VLC nicht gefunden – bitte installieren: videolan.org/vlc"
+          : err.message || "Fehler beim Öffnen in VLC";
+      this._showVlcToast(hint, "error");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  /** Small toast notification for VLC feedback */
+  _showVlcToast(message, type = "info") {
+    let toast = document.getElementById("vlc-toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "vlc-toast";
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.className = `vlc-toast vlc-toast--${type} vlc-toast--show`;
+    clearTimeout(this._vlcToastTimer);
+    this._vlcToastTimer = setTimeout(() => {
+      toast.classList.remove("vlc-toast--show");
+    }, 3500);
   }
 
   /**
@@ -937,6 +1050,41 @@ class VideoPlayer {
       // Stop any WatchPage playback (movies/series) before starting Live TV
       window.app?.pages?.watch?.stop?.();
 
+      // ── Native VLC Player (Tauri Desktop, Windows) ────────────────────────
+      // When running inside Tauri and the user has enabled the native player,
+      // hand off to NativePlayer which embeds VLC directly – zero transcoding.
+      if (
+        window.NativePlayer?.isSupported &&
+        this.settings.useNativePlayer !== false
+      ) {
+        await this.stopTranscodeSession();
+        this.stop();
+        this.updateTranscodeStatus("hidden");
+        this.overlay.classList.add("hidden");
+        this.controlsOverlay?.classList.remove("hidden");
+        this.updateTranscodeStatus(
+          "direct",
+          this.t("status.vlcNative", "VLC Native"),
+        );
+
+        const title = channel.name || channel.title || "StreamNet TV";
+        const ok = await window.NativePlayer.play(streamUrl, title, this.video);
+        if (ok) {
+          this.currentChannel = channel;
+          this.currentUrl = streamUrl;
+          this.loadingSpinner?.classList.remove("show");
+          this.updateNowPlaying(channel);
+          this.fetchEpgData(channel);
+          window.dispatchEvent(
+            new CustomEvent("channelChanged", { detail: channel }),
+          );
+          return;
+        }
+        // NativePlayer failed → fall through to HLS.js path
+        console.warn("[Player] NativePlayer failed, falling back to HLS.js");
+      }
+      // ── End Native VLC Player ─────────────────────────────────────────────
+
       // Stop current playback and await session cleanup to avoid duplicate FFmpeg sessions.
       await this.stopTranscodeSession();
       this.stop();
@@ -1009,10 +1157,10 @@ class VideoPlayer {
                 : "encode";
             const statusText =
               videoMode === "copy"
-                ? "Transcoding (Audio)"
+                ? this.t("status.transcodingAudio", "Transcoding (Audio)")
                 : this.settings.upscaleEnabled
-                  ? "Upscaling"
-                  : "Transcoding (Video)";
+                  ? this.t("status.upscaling", "Upscaling")
+                  : this.t("status.transcodingVideo", "Transcoding (Video)");
             const statusMode = this.settings.upscaleEnabled
               ? "upscaling"
               : "transcoding";
@@ -1039,7 +1187,10 @@ class VideoPlayer {
           } else if (info.needsRemux) {
             // Raw .ts container - use remux
             console.log("[Player] Auto: Using remux (.ts container)");
-            this.updateTranscodeStatus("remuxing", "Remux (Auto)");
+            this.updateTranscodeStatus(
+              "remuxing",
+              this.t("status.remuxAuto", "Remux (Auto)"),
+            );
             const remuxUrl = `/api/remux?url=${encodeURIComponent(streamUrl)}`;
             this.currentUrl = remuxUrl;
             this.video.src = remuxUrl;
@@ -1069,8 +1220,8 @@ class VideoPlayer {
       // CHECK: Force Video Transcode (Full) or Upscaling
       if (this.settings.forceVideoTranscode || this.settings.upscaleEnabled) {
         const statusText = this.settings.upscaleEnabled
-          ? "Upscaling"
-          : "Transcoding (Video)";
+          ? this.t("status.upscaling", "Upscaling")
+          : this.t("status.transcodingVideo", "Transcoding (Video)");
         const statusMode = this.settings.upscaleEnabled
           ? "upscaling"
           : "transcoding";
@@ -1085,7 +1236,10 @@ class VideoPlayer {
         this.currentUrl = playlistUrl;
 
         // Load HLS
-        this.updateNowPlaying(channel, "Transcoding (Video)");
+        this.updateNowPlaying(
+          channel,
+          this.t("status.transcodingVideo", "Transcoding (Video)"),
+        );
         // ... (rest is same logic flow, simplified by just falling through to playHls call if I refactored)
         // But for minimize drift, I'll copy the block logic for HLS playback init
         // Actually, I can just fall through if I set looksLikeHls = true?
@@ -1124,7 +1278,10 @@ class VideoPlayer {
         console.log(
           "[Player] Force Audio Transcode enabled. Starting session (copy)...",
         );
-        this.updateTranscodeStatus("transcoding", "Transcoding (Audio)");
+        this.updateTranscodeStatus(
+          "transcoding",
+          this.t("status.transcodingAudio", "Transcoding (Audio)"),
+        );
 
         // Probe to get video codec for HEVC tag handling
         let videoCodec = "unknown";
@@ -1194,7 +1351,10 @@ class VideoPlayer {
           "[Player] Stream type:",
           isRawTs ? "Raw TS" : "Extension-less (assumed TS)",
         );
-        this.updateTranscodeStatus("remuxing", "Remux (Force)");
+        this.updateTranscodeStatus(
+          "remuxing",
+          this.t("status.remuxForce", "Remux (Force)"),
+        );
         const remuxUrl = this.getRemuxUrl(streamUrl);
         this.video.src = remuxUrl;
         this.video.play().catch((e) => {
@@ -1228,7 +1388,10 @@ class VideoPlayer {
 
       // Priority 1: Use HLS.js for HLS streams on browsers that support it
       if (looksLikeHls && Hls.isSupported()) {
-        this.updateTranscodeStatus("direct", "Direct HLS");
+        this.updateTranscodeStatus(
+          "direct",
+          this.t("status.directHls", "Direct HLS"),
+        );
 
         // Use playHls helper logic here (or extract it)
         // For now, let's just use existing logic but wrapped/modularized if possible?
@@ -1312,7 +1475,10 @@ class VideoPlayer {
         this.video.canPlayType("application/vnd.apple.mpegurl") === "maybe"
       ) {
         // Priority 2: Native HLS support (Safari on iOS/macOS where HLS.js may not work)
-        this.updateTranscodeStatus("direct", "Direct Native");
+        this.updateTranscodeStatus(
+          "direct",
+          this.t("status.directNative", "Direct Native"),
+        );
         this.video.src = finalUrl;
         this.video.play().catch((e) => {
           if (e.name === "AbortError") return; // Ignore interruption by new load
@@ -1328,7 +1494,10 @@ class VideoPlayer {
         });
       } else {
         // Priority 3: Try direct playback for non-HLS streams
-        this.updateTranscodeStatus("direct", "Direct Play");
+        this.updateTranscodeStatus(
+          "direct",
+          this.t("status.directPlay", "Direct Play"),
+        );
         this.video.src = finalUrl;
         this.video.play().catch((e) => {
           if (e.name !== "AbortError") console.log("Autoplay prevented:", e);
@@ -1585,6 +1754,9 @@ class VideoPlayer {
   stop() {
     // Stop any running transcode session first
     this.stopTranscodeSession();
+
+    // Stop native VLC overlay if active
+    window.NativePlayer?.stop?.();
 
     if (this.hls) {
       this.hls.destroy();

@@ -346,6 +346,10 @@ h4 {
   display: none !important;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 /* =====================================================
    Navbar (Sidebar)
    ===================================================== */
@@ -6179,6 +6183,100 @@ kbd {
 .watch-btn .icon {
   width: 24px;
   height: 24px;
+}
+
+/* ── VLC Button ──────────────────────────────────────────────────────────── */
+.vlc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: auto;
+  padding: 0 10px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 128, 0, 0.18);
+  border: 1px solid rgba(255, 128, 0, 0.45);
+  color: #ff9f2d;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.vlc-btn:hover {
+  background: rgba(255, 128, 0, 0.32);
+  border-color: rgba(255, 128, 0, 0.8);
+  transform: translateY(-1px);
+}
+
+.vlc-btn:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.vlc-btn .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.vlc-btn-label {
+  line-height: 1;
+}
+
+/* Desktop-only badge (shown next to setting labels available only in Tauri) */
+.badge-desktop {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(var(--color-accent-rgb), 0.18);
+  border: 1px solid rgba(var(--color-accent-rgb), 0.45);
+  color: var(--color-accent);
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* VLC Toast Notification */
+.vlc-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  z-index: 9999;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(30, 30, 30, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+
+.vlc-toast--show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.vlc-toast--error {
+  border-color: rgba(255, 80, 80, 0.45);
+  background: rgba(60, 20, 20, 0.92);
+  color: #ff9090;
 }
 
 /* Captions Menu */

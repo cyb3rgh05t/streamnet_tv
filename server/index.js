@@ -242,6 +242,7 @@ app.use("/api/subtitle", require("./routes/subtitle"));
 app.use("/api/settings", require("./routes/settings"));
 app.use("/api/history", require("./routes/history"));
 app.use("/api/admin", require("./routes/admin"));
+app.use("/api/vlc", require("./routes/vlc"));
 
 // Version endpoint
 app.get("/api/version", (req, res) => {

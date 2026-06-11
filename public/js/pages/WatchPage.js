@@ -91,6 +91,10 @@ class WatchPage {
     this.init();
   }
 
+  t(key, fallback) {
+    return window.I18n?.t ? window.I18n.t(key) : fallback || key;
+  }
+
   init() {
     // iOS Safari: detect and compensate for floating bottom toolbar
     const updateIosUiBottom = () => {
@@ -155,6 +159,13 @@ class WatchPage {
     // Picture-in-Picture
     const pipBtn = document.getElementById("watch-pip");
     pipBtn?.addEventListener("click", () => this.togglePictureInPicture());
+
+    // VLC Button (Watch Player)
+    const watchVlcBtn = document.getElementById("watch-open-vlc");
+    if (watchVlcBtn) {
+      watchVlcBtn.hidden = !window.__TAURI__;
+    }
+    watchVlcBtn?.addEventListener("click", () => this.openInVlc());
 
     // Overflow Menu
     const overflowBtn = document.getElementById("watch-overflow");
@@ -625,10 +636,10 @@ class WatchPage {
               : "encode";
           const statusText =
             videoMode === "copy"
-              ? "Transcoding (Audio)"
+              ? this.t("status.transcodingAudio", "Transcoding (Audio)")
               : settings.upscaleEnabled
-                ? "Upscaling"
-                : "Transcoding (Video)";
+                ? this.t("status.upscaling", "Upscaling")
+                : this.t("status.transcodingVideo", "Transcoding (Video)");
           const statusMode = settings.upscaleEnabled
             ? "upscaling"
             : "transcoding";
@@ -669,7 +680,10 @@ class WatchPage {
           // TODO: Move remux to session logic if seeking is needed for TS files
           console.log("[WatchPage] Auto: Using remux (.ts container)");
           this.setPlaybackMode("remux");
-          this.updateTranscodeStatus("remuxing", "Remux (Auto)");
+          this.updateTranscodeStatus(
+            "remuxing",
+            this.t("status.remuxAuto", "Remux (Auto)"),
+          );
           const finalUrl = `/api/remux?url=${encodeURIComponent(url)}`;
           this.video.src = finalUrl;
           this.video.play().catch((e) => {
@@ -693,8 +707,8 @@ class WatchPage {
     // Priority 1: Force Video Transcode (Full) or Upscaling
     if (settings.forceVideoTranscode || settings.upscaleEnabled) {
       const statusText = settings.upscaleEnabled
-        ? "Upscaling"
-        : "Transcoding (Video)";
+        ? this.t("status.upscaling", "Upscaling")
+        : this.t("status.transcodingVideo", "Transcoding (Video)");
       const statusMode = settings.upscaleEnabled ? "upscaling" : "transcoding";
       console.log(
         `[WatchPage] ${statusText} enabled. Starting session (encode)...`,
@@ -724,7 +738,10 @@ class WatchPage {
         "[WatchPage] Force Audio Transcode enabled. Starting session (copy)...",
       );
       this.setPlaybackMode("audioTranscode");
-      this.updateTranscodeStatus("transcoding", "Transcoding (Audio)");
+      this.updateTranscodeStatus(
+        "transcoding",
+        this.t("status.transcodingAudio", "Transcoding (Audio)"),
+      );
 
       // Probe to get video codec for HEVC tag handling
       let videoCodec = "unknown";
@@ -766,7 +783,10 @@ class WatchPage {
     if (settings.forceRemux && isRawTs) {
       console.log("[WatchPage] Force Remux enabled");
       this.setPlaybackMode("remux");
-      this.updateTranscodeStatus("remuxing", "Remux (Force)");
+      this.updateTranscodeStatus(
+        "remuxing",
+        this.t("status.remuxForce", "Remux (Force)"),
+      );
       const finalUrl = `/api/remux?url=${encodeURIComponent(url)}`;
       this.video.src = finalUrl;
       this.video.play().catch((e) => {
@@ -791,12 +811,18 @@ class WatchPage {
     // Use HLS.js for HLS streams
     if (looksLikeHls && Hls.isSupported()) {
       this.setPlaybackMode("direct");
-      this.updateTranscodeStatus("direct", "Direct HLS");
+      this.updateTranscodeStatus(
+        "direct",
+        this.t("status.directHls", "Direct HLS"),
+      );
       this.playHls(finalUrl);
     } else {
       // Direct playback for mp4/mkv/avi
       this.setPlaybackMode("direct");
-      this.updateTranscodeStatus("direct", "Direct Play");
+      this.updateTranscodeStatus(
+        "direct",
+        this.t("status.directPlay", "Direct Play"),
+      );
       this.video.src = finalUrl;
       this.video.play().catch((e) => {
         if (e.name !== "AbortError")
@@ -1261,6 +1287,89 @@ class WatchPage {
   }
 
   /**
+   * Open current stream directly in VLC (no server-side transcoding).
+   */
+  async openInVlc() {
+    if (!window.__TAURI__) {
+      this._showVlcToast("VLC ist nur in der Desktop-App verfügbar.", "error");
+      return;
+    }
+
+    const btn = document.getElementById("watch-open-vlc");
+    if (btn) btn.disabled = true;
+
+    try {
+      let directUrl = null;
+
+      if (this.content?.source_id && this.content?.stream_id) {
+        try {
+          const type = this.contentType === "movie" ? "movie" : "series";
+          const container = this.content.container_extension || "mp4";
+          const data = await API.request(
+            "GET",
+            `/proxy/xtream/${this.content.source_id}/stream/${this.content.stream_id}/${type}?container=${container}`,
+          );
+          directUrl = data?.url || null;
+        } catch (_) {
+          /* fall through */
+        }
+      }
+
+      if (!directUrl) {
+        directUrl =
+          this.content?.stream_url || this.content?.url || this.currentUrl;
+      }
+
+      if (!directUrl) {
+        this._showVlcToast(
+          "Stream-URL konnte nicht ermittelt werden.",
+          "error",
+        );
+        return;
+      }
+
+      const title = this.content?.name || this.content?.title || "StreamNet TV";
+      const resp = await API.request("POST", "/vlc/launch", {
+        url: directUrl,
+        title,
+      });
+
+      if (resp?.ok) {
+        this._showVlcToast(`▶ In VLC geöffnet: ${title}`);
+      } else {
+        this._showVlcToast(
+          resp?.error || "VLC konnte nicht gestartet werden.",
+          "error",
+        );
+      }
+    } catch (err) {
+      const hint =
+        err?.message?.includes("404") || err?.message?.includes("not found")
+          ? "VLC nicht gefunden – bitte installieren: videolan.org/vlc"
+          : err.message || "Fehler beim Öffnen in VLC";
+      this._showVlcToast(hint, "error");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  /** Small toast notification for VLC feedback */
+  _showVlcToast(message, type = "info") {
+    let toast = document.getElementById("vlc-toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "vlc-toast";
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.className = `vlc-toast vlc-toast--${type} vlc-toast--show`;
+    clearTimeout(this._vlcToastTimer);
+    this._vlcToastTimer = setTimeout(() => {
+      toast.classList.remove("vlc-toast--show");
+    }, 3500);
+  }
+
+  /**
    * Copy current stream URL to clipboard
    */
   copyStreamUrl() {
@@ -1288,7 +1397,7 @@ class WatchPage {
           // Show brief feedback
           const btn = document.getElementById("watch-copy-url");
           if (btn) {
-            btn.textContent = "Ô£ô Copied!";
+            btn.textContent = "Copied!";
             setTimeout(() => {
               btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg> Copy Stream URL`;
             }, 1500);
@@ -1815,9 +1924,20 @@ class WatchPage {
     this.stop();
     this.cancelNextEpisode();
 
-    // Navigate to the page we came from (stored in returnPage)
-    // We don't use history.back() because we used replaceHistory when navigating here
-    this.app.navigateTo(this.returnPage || "movies");
+    // Navigate back to the page we came from and restore its preplay state.
+    // We don't use history.back() because we used replaceHistory when navigating here.
+    const targetPage = this.returnPage || "movies";
+    const preplayMovie = this.content?.preplayMovie || null;
+    const preplaySeries = this.content?.preplaySeries || null;
+
+    if (targetPage === "movies" && preplayMovie) {
+      this.app.pages.movies.pendingPreplayMovie = preplayMovie;
+    }
+    if (targetPage === "series" && preplaySeries) {
+      this.app.pages.series.pendingPreplaySeries = preplaySeries;
+    }
+
+    this.app.navigateTo(targetPage);
   }
 
   show() {

@@ -28,6 +28,7 @@ class SeriesPage {
     this.currentSeriesInfo = null;
     this.currentTmdbId = null; // TMDB ID for episode stills
     this.resumeEpisodeEl = null;
+    this.pendingPreplaySeries = null;
 
     this.preplayHero = document.getElementById("series-preplay-hero");
     this.preplayLogo = document.getElementById("series-preplay-logo");
@@ -360,6 +361,12 @@ class SeriesPage {
     if (this.seriesList.length === 0) {
       await this.loadCategories();
       await this.loadSeries();
+    }
+
+    if (this.pendingPreplaySeries) {
+      const series = this.pendingPreplaySeries;
+      this.pendingPreplaySeries = null;
+      await this.showSeriesDetails(series);
     }
   }
 
@@ -1274,6 +1281,9 @@ class SeriesPage {
           const episodeTitle =
             episodeEl.querySelector(".episode-tile-title")?.textContent ||
             `Episode ${episodeNum}`;
+          const episodeDuration =
+            episodeEl.querySelector(".episode-tile-duration")?.textContent ||
+            "";
 
           this.app.pages.watch.play(
             {
@@ -1291,7 +1301,9 @@ class SeriesPage {
               currentSeason: seasonNum,
               currentEpisode: episodeNum,
               containerExtension: container,
+              duration: episodeDuration,
               resumeTime,
+              preplaySeries: this.currentSeries,
             },
             result.url,
           );

@@ -791,6 +791,14 @@ function getSession(sessionId) {
  * Get or create a session for a URL (reuses existing if still valid)
  */
 async function getOrCreateSession(url, options = {}) {
+  const requestedSeekOffset = Number(options.seekOffset) || 0;
+
+  // Seek requests must always start a fresh session at the requested offset.
+  // Reusing the old running session would keep playback pinned to the old position.
+  if (requestedSeekOffset > 0) {
+    return createSession(url, options);
+  }
+
   // Check for existing session with same URL
   for (const session of sessions.values()) {
     if (session.url === url && session.status === "running") {

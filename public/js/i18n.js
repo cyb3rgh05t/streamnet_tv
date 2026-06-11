@@ -135,6 +135,71 @@
       "settings.manageContent": "Manage Content",
       "settings.users": "Users",
       "settings.language": "Language",
+      "settings.loadingHardwareInfo": "Loading hardware information...",
+      "settings.hardwareEncoder": "Hardware Encoder",
+      "settings.hardwareEncoderHint":
+        "Select which GPU encoder to use for transcoding. Auto will use the best available.",
+      "settings.encoderAuto": "Auto (Recommended)",
+      "settings.maxResolution": "Max Resolution",
+      "settings.maxResolutionHint":
+        "Limit transcoded output resolution. Lower = faster, more compatible.",
+      "settings.qualityPreset": "Quality Preset",
+      "settings.qualityPresetHint":
+        "Higher quality uses more bandwidth and CPU/GPU.",
+      "settings.qualityHigh": "High",
+      "settings.qualityMedium": "Medium",
+      "settings.qualityLow": "Low (Fastest)",
+      "settings.audioMixPreset": "Audio Mix Preset",
+      "settings.audioMixPresetHint":
+        "How multi-channel audio (5.1/7.1) is mixed down to stereo for browser playback.",
+      "settings.audioMixAuto": "Auto (Smart Copy/ITU)",
+      "settings.audioMixITU": "ITU-R BS.775 (Balanced)",
+      "settings.audioMixNight": "Night Mode (Dialogue Boost)",
+      "settings.audioMixCinematic": "Cinematic (Wide)",
+      "settings.audioMixPassthrough": "Passthrough (Copy)",
+      "settings.upscaleEnabled": "Enable Upscaling",
+      "settings.upscaleEnabledHint":
+        "Upscale lower-resolution content to a higher resolution during transcoding.",
+      "settings.upscaleMethod": "Upscale Method",
+      "settings.upscaleMethodHint":
+        "Hardware is faster; Software (Lanczos) is higher quality.",
+      "settings.upscaleHardware": "Hardware (GPU)",
+      "settings.upscaleSoftware": "Software (Lanczos)",
+      "settings.upscaleTarget": "Upscale Target",
+      "settings.upscaleTargetHint": "Target resolution for upscaled output.",
+      "settings.nativeVlcPlayer": "Native VLC Player",
+      "settings.nativeVlcHint":
+        "Embeds VLC directly into the app window. Zero transcoding - VLC decodes natively with full hardware acceleration. Requires VLC installed on this PC.",
+      "settings.autoTranscode": "Auto Transcode (Smart)",
+      "settings.autoTranscodeHint":
+        "Automatically detect stream codecs and only transcode/remux when needed. Adds ~1-3s probe delay on first play.",
+      "settings.forceAudioTranscode": "Force Audio Transcode",
+      "settings.forceAudioTranscodeHint":
+        "Transcode audio to AAC for browser compatibility. Enable if you get video but no audio (fixes Dolby/AC3/EAC3).",
+      "settings.forceVideoTranscode": "Force Video Transcode",
+      "settings.forceVideoTranscodeHint":
+        "Force full video transcoding (burn-in subtitles, incompatible video). Uses HW encoder.",
+      "settings.forceRemux": "Force Remux",
+      "settings.forceRemuxHint":
+        "Remux streams to MP4 container. Enable for raw .ts streams from IPTV middleware like m3u-editor or dispatcharr.",
+      "settings.streamOutputFormat": "Stream Output Format",
+      "settings.streamOutputFormatHint":
+        "Container format for Xtream streams. Try TS if you experience buffering issues.",
+      "settings.streamFormatHls": "HLS (m3u8) - Recommended",
+      "settings.streamFormatTs": "MPEG-TS (ts) - Better buffer",
+      "settings.userAgent": "User-Agent",
+      "settings.userAgentHint":
+        "HTTP User-Agent for stream requests. Try VLC if your provider blocks Chrome.",
+      "settings.userAgentChrome": "Chrome (Default)",
+      "settings.userAgentVlc": "VLC",
+      "settings.userAgentTiviMate": "TiviMate",
+      "settings.userAgentCustom": "Custom...",
+      "settings.customUserAgent": "Custom User-Agent",
+      "settings.customUserAgentHint": "Enter your own User-Agent string.",
+      "settings.customUserAgentPlaceholder": "Custom User-Agent string...",
+      "settings.forceBackendProxy": "Force Backend Proxy",
+      "settings.forceBackendProxyHint":
+        "Route all streams through the server to bypass CORS restrictions. Enable if streams do not play directly.",
       "settings.recommendedEncoder": "Recommended encoder",
       "settings.noGpuDetected":
         "No GPU acceleration detected. Using software encoding.",
@@ -176,6 +241,16 @@
       "settings.heroStatVersion": "App version",
       "settings.heroStatRuntime": "Runtime baseline",
       "settings.heroStatAuth": "Authentication",
+
+      "status.vlcNative": "VLC Native",
+      "status.transcodingAudio": "Transcoding (Audio)",
+      "status.transcodingVideo": "Transcoding (Video)",
+      "status.upscaling": "Upscaling",
+      "status.remuxAuto": "Remux (Auto)",
+      "status.remuxForce": "Remux (Force)",
+      "status.directHls": "Direct HLS",
+      "status.directNative": "Direct Native",
+      "status.directPlay": "Direct Play",
 
       "users.username": "Username",
       "users.password": "Password",
@@ -438,10 +513,79 @@
       "settings.title": "Einstellungen",
       "settings.sources": "Quellen",
       "settings.player": "Player",
-      "settings.transcoding": "Transcoding",
+      "settings.transcoding": "Transkodierung",
       "settings.manageContent": "Inhalte verwalten",
       "settings.users": "Benutzer",
       "settings.language": "Sprache",
+      "settings.loadingHardwareInfo":
+        "Hardware-Informationen werden geladen...",
+      "settings.hardwareEncoder": "Hardware-Encoder",
+      "settings.hardwareEncoderHint":
+        "Waehle den GPU-Encoder fuer die Transkodierung. Auto nutzt die beste verfuegbare Option.",
+      "settings.encoderAuto": "Auto (Empfohlen)",
+      "settings.maxResolution": "Maximale Aufloesung",
+      "settings.maxResolutionHint":
+        "Begrenze die Ausgabeaufloesung der Transkodierung. Niedriger = schneller, kompatibler.",
+      "settings.qualityPreset": "Qualitaetsprofil",
+      "settings.qualityPresetHint":
+        "Hoehere Qualitaet benoetigt mehr Bandbreite und CPU/GPU.",
+      "settings.qualityHigh": "Hoch",
+      "settings.qualityMedium": "Mittel",
+      "settings.qualityLow": "Niedrig (am schnellsten)",
+      "settings.audioMixPreset": "Audio-Mix-Profil",
+      "settings.audioMixPresetHint":
+        "Wie Mehrkanal-Audio (5.1/7.1) auf Stereo fuer die Browser-Wiedergabe gemischt wird.",
+      "settings.audioMixAuto": "Auto (Intelligentes Kopieren/ITU)",
+      "settings.audioMixITU": "ITU-R BS.775 (Ausgewogen)",
+      "settings.audioMixNight": "Nachtmodus (Dialog-Boost)",
+      "settings.audioMixCinematic": "Kino (Breit)",
+      "settings.audioMixPassthrough": "Passthrough (Copy)",
+      "settings.upscaleEnabled": "Hochskalierung aktivieren",
+      "settings.upscaleEnabledHint":
+        "Skaliert Inhalte mit niedrigerer Aufloesung waehrend der Transkodierung auf eine hoehere Aufloesung.",
+      "settings.upscaleMethod": "Hochskalierungsmethode",
+      "settings.upscaleMethodHint":
+        "Hardware ist schneller; Software (Lanczos) hat bessere Qualitaet.",
+      "settings.upscaleHardware": "Hardware (GPU)",
+      "settings.upscaleSoftware": "Software (Lanczos)",
+      "settings.upscaleTarget": "Zielaufloesung",
+      "settings.upscaleTargetHint":
+        "Zielaufloesung fuer hochskalierten Output.",
+      "settings.nativeVlcPlayer": "Native VLC-Wiedergabe",
+      "settings.nativeVlcHint":
+        "Betten VLC direkt ins App-Fenster ein. Keine Transkodierung - VLC dekodiert nativ mit voller Hardwarebeschleunigung. VLC muss auf diesem PC installiert sein.",
+      "settings.autoTranscode": "Automatisch transkodieren (Smart)",
+      "settings.autoTranscodeHint":
+        "Streams automatisch pruefen und Transkodierung/Remux nur bei Bedarf nutzen. Fuegt beim ersten Abspielen ca. 1-3 Sekunden Pruefzeit hinzu.",
+      "settings.forceAudioTranscode": "Audio-Transkodierung erzwingen",
+      "settings.forceAudioTranscodeHint":
+        "Audio fuer Browser-Kompatibilitaet nach AAC transkodieren. Aktivieren, wenn Video aber kein Ton kommt (hilft bei Dolby/AC3/EAC3).",
+      "settings.forceVideoTranscode": "Video-Transkodierung erzwingen",
+      "settings.forceVideoTranscodeHint":
+        "Volle Video-Transkodierung erzwingen (Untertitel einbrennen, inkompatibles Video). Nutzt HW-Encoder.",
+      "settings.forceRemux": "Remux erzwingen",
+      "settings.forceRemuxHint":
+        "Streams in den MP4-Container remuxen. Aktivieren fuer rohe .ts-Streams von IPTV-Middleware wie m3u-editor oder dispatcharr.",
+      "settings.streamOutputFormat": "Stream-Ausgabeformat",
+      "settings.streamOutputFormatHint":
+        "Containerformat fuer Xtream-Streams. Probiere TS, wenn es zu Pufferproblemen kommt.",
+      "settings.streamFormatHls": "HLS (m3u8) - Empfohlen",
+      "settings.streamFormatTs": "MPEG-TS (ts) - Besserer Puffer",
+      "settings.userAgent": "User-Agent",
+      "settings.userAgentHint":
+        "HTTP User-Agent fuer Stream-Anfragen. Probiere VLC, wenn dein Anbieter Chrome blockiert.",
+      "settings.userAgentChrome": "Chrome (Standard)",
+      "settings.userAgentVlc": "VLC",
+      "settings.userAgentTiviMate": "TiviMate",
+      "settings.userAgentCustom": "Benutzerdefiniert...",
+      "settings.customUserAgent": "Benutzerdefinierter User-Agent",
+      "settings.customUserAgentHint":
+        "Gib deinen eigenen User-Agent-String ein.",
+      "settings.customUserAgentPlaceholder":
+        "Benutzerdefinierter User-Agent-String...",
+      "settings.forceBackendProxy": "Backend-Proxy erzwingen",
+      "settings.forceBackendProxyHint":
+        "Leite alle Streams ueber den Server, um CORS-Einschraenkungen zu umgehen. Aktivieren, wenn Streams nicht direkt abspielen.",
       "settings.recommendedEncoder": "Empfohlener Encoder",
       "settings.noGpuDetected":
         "Keine GPU-Beschleunigung erkannt. Software-Encoding wird verwendet.",
@@ -487,6 +631,16 @@
       "settings.heroStatVersion": "App-Version",
       "settings.heroStatRuntime": "Runtime-Basis",
       "settings.heroStatAuth": "Authentifizierung",
+
+      "status.vlcNative": "VLC Nativ",
+      "status.transcodingAudio": "Transkodierung (Audio)",
+      "status.transcodingVideo": "Transkodierung (Video)",
+      "status.upscaling": "Hochskalierung",
+      "status.remuxAuto": "Remux (Auto)",
+      "status.remuxForce": "Remux (Erzwungen)",
+      "status.directHls": "Direkt HLS",
+      "status.directNative": "Direkt Nativ",
+      "status.directPlay": "Direkte Wiedergabe",
 
       "users.username": "Benutzername",
       "users.password": "Passwort",
@@ -869,25 +1023,208 @@
       "#tab-transcode .settings-section:nth-of-type(1) h3",
       "settings.detectedHardware",
     );
+    setText("#hw-info-container .hint", "settings.loadingHardwareInfo");
     setText(
       "#tab-transcode .settings-section:nth-of-type(2) h3",
       "settings.encoderSettings",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(2) .setting-item:nth-of-type(1) .setting-label",
+      "settings.hardwareEncoder",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(2) .setting-item:nth-of-type(1) .setting-hint",
+      "settings.hardwareEncoderHint",
+    );
+    setOptionByValue("setting-hw-encoder", "auto", "settings.encoderAuto");
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(2) .setting-item:nth-of-type(2) .setting-label",
+      "settings.maxResolution",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(2) .setting-item:nth-of-type(2) .setting-hint",
+      "settings.maxResolutionHint",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(2) .setting-item:nth-of-type(3) .setting-label",
+      "settings.qualityPreset",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(2) .setting-item:nth-of-type(3) .setting-hint",
+      "settings.qualityPresetHint",
+    );
+    setOptionByValue("setting-quality", "high", "settings.qualityHigh");
+    setOptionByValue("setting-quality", "medium", "settings.qualityMedium");
+    setOptionByValue("setting-quality", "low", "settings.qualityLow");
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(2) .setting-item:nth-of-type(4) .setting-label",
+      "settings.audioMixPreset",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(2) .setting-item:nth-of-type(4) .setting-hint",
+      "settings.audioMixPresetHint",
+    );
+    setOptionByValue("setting-audio-mix", "auto", "settings.audioMixAuto");
+    setOptionByValue("setting-audio-mix", "itu", "settings.audioMixITU");
+    setOptionByValue("setting-audio-mix", "night", "settings.audioMixNight");
+    setOptionByValue(
+      "setting-audio-mix",
+      "cinematic",
+      "settings.audioMixCinematic",
+    );
+    setOptionByValue(
+      "setting-audio-mix",
+      "passthrough",
+      "settings.audioMixPassthrough",
     );
     setText(
       "#tab-transcode .settings-section:nth-of-type(3) h3",
       "settings.upscaling",
     );
     setText(
+      "#tab-transcode .settings-section:nth-of-type(3) .setting-item:nth-of-type(1) .setting-label",
+      "settings.upscaleEnabled",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(3) .setting-item:nth-of-type(1) .setting-hint",
+      "settings.upscaleEnabledHint",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(3) .setting-item:nth-of-type(2) .setting-label",
+      "settings.upscaleMethod",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(3) .setting-item:nth-of-type(2) .setting-hint",
+      "settings.upscaleMethodHint",
+    );
+    setOptionByValue(
+      "setting-upscale-method",
+      "hardware",
+      "settings.upscaleHardware",
+    );
+    setOptionByValue(
+      "setting-upscale-method",
+      "software",
+      "settings.upscaleSoftware",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(3) .setting-item:nth-of-type(3) .setting-label",
+      "settings.upscaleTarget",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(3) .setting-item:nth-of-type(3) .setting-hint",
+      "settings.upscaleTargetHint",
+    );
+    setText(
       "#tab-transcode .settings-section:nth-of-type(4) h3",
       "settings.streamProcessing",
+    );
+    setText("#setting-native-player-label", "settings.nativeVlcPlayer");
+    setText(
+      "#setting-native-player-row .setting-hint",
+      "settings.nativeVlcHint",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(4) .setting-item:nth-of-type(2) .setting-label",
+      "settings.autoTranscode",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(4) .setting-item:nth-of-type(2) .setting-hint",
+      "settings.autoTranscodeHint",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(4) .setting-item:nth-of-type(3) .setting-label",
+      "settings.forceAudioTranscode",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(4) .setting-item:nth-of-type(3) .setting-hint",
+      "settings.forceAudioTranscodeHint",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(4) .setting-item:nth-of-type(4) .setting-label",
+      "settings.forceVideoTranscode",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(4) .setting-item:nth-of-type(4) .setting-hint",
+      "settings.forceVideoTranscodeHint",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(4) .setting-item:nth-of-type(5) .setting-label",
+      "settings.forceRemux",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(4) .setting-item:nth-of-type(5) .setting-hint",
+      "settings.forceRemuxHint",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(4) .setting-item:nth-of-type(6) .setting-label",
+      "settings.streamOutputFormat",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(4) .setting-item:nth-of-type(6) .setting-hint",
+      "settings.streamOutputFormatHint",
+    );
+    setOptionByValue(
+      "setting-stream-format-tc",
+      "m3u8",
+      "settings.streamFormatHls",
+    );
+    setOptionByValue(
+      "setting-stream-format-tc",
+      "ts",
+      "settings.streamFormatTs",
     );
     setText(
       "#tab-transcode .settings-section:nth-of-type(5) h3",
       "settings.httpSettings",
     );
     setText(
+      "#tab-transcode .settings-section:nth-of-type(5) .setting-item:nth-of-type(1) .setting-label",
+      "settings.userAgent",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(5) .setting-item:nth-of-type(1) .setting-hint",
+      "settings.userAgentHint",
+    );
+    setOptionByValue(
+      "setting-user-agent-tc",
+      "chrome",
+      "settings.userAgentChrome",
+    );
+    setOptionByValue("setting-user-agent-tc", "vlc", "settings.userAgentVlc");
+    setOptionByValue(
+      "setting-user-agent-tc",
+      "tivimate",
+      "settings.userAgentTiviMate",
+    );
+    setOptionByValue(
+      "setting-user-agent-tc",
+      "custom",
+      "settings.userAgentCustom",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(5) .setting-item:nth-of-type(2) .setting-label",
+      "settings.customUserAgent",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(5) .setting-item:nth-of-type(2) .setting-hint",
+      "settings.customUserAgentHint",
+    );
+    setPlaceholder(
+      "#setting-user-agent-custom-tc",
+      "settings.customUserAgentPlaceholder",
+    );
+    setText(
       "#tab-transcode .settings-section:nth-of-type(6) h3",
       "settings.network",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(6) .setting-item .setting-label",
+      "settings.forceBackendProxy",
+    );
+    setText(
+      "#tab-transcode .settings-section:nth-of-type(6) .setting-item .setting-hint",
+      "settings.forceBackendProxyHint",
     );
 
     setText("#content-type-channels", "content.channels");

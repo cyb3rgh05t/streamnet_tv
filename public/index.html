@@ -450,6 +450,26 @@
                           </div>
                         </div>
                       </div>
+
+                      <!-- VLC Button (Live Player) -->
+                      <button
+                        class="watch-btn vlc-btn"
+                        id="btn-open-vlc"
+                        hidden
+                        title="In VLC öffnen"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                          class="icon"
+                        >
+                          <path
+                            d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"
+                          />
+                        </svg>
+                        <span class="vlc-btn-label">VLC</span>
+                      </button>
                     </div>
                   </div>
 
@@ -1201,6 +1221,28 @@
 
                   <div class="settings-section">
                     <h3>Stream Processing</h3>
+
+                    <!-- Native VLC Player (Desktop only) -->
+                    <div class="setting-item" id="setting-native-player-row">
+                      <label class="setting-toggle">
+                        <input type="checkbox" id="setting-native-player-tc" />
+                        <span class="toggle-slider"></span>
+                      </label>
+                      <div class="setting-info">
+                        <span class="setting-label"
+                          ><span id="setting-native-player-label"
+                            >Native VLC Player</span
+                          >
+                          <span class="badge-desktop">Desktop</span></span
+                        >
+                        <span class="setting-hint">
+                          Embeds VLC directly into the app window. Zero
+                          transcoding – VLC decodes natively with full hardware
+                          acceleration. Requires VLC installed on this PC.
+                        </span>
+                      </div>
+                    </div>
+
                     <div class="setting-item">
                       <label class="setting-toggle">
                         <input type="checkbox" id="setting-auto-transcode-tc" />
@@ -1689,6 +1731,25 @@
                       </div>
                     </div>
                   </div>
+                  <!-- VLC Button (Watch Player) -->
+                  <button
+                    class="watch-btn vlc-btn"
+                    id="watch-open-vlc"
+                    hidden
+                    title="In VLC öffnen"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      class="icon"
+                    >
+                      <path
+                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"
+                      />
+                    </svg>
+                    <span class="vlc-btn-label">VLC</span>
+                  </button>
                   <button
                     class="watch-btn"
                     id="watch-pip"
@@ -1906,6 +1967,7 @@
     <script src="/js/icons.js?v=__CACHE_BUST__"></script>
     <script src="/js/api.js?v=__CACHE_BUST__"></script>
     <script src="/js/i18n.js?v=__CACHE_BUST__"></script>
+    <script src="/js/components/NativePlayer.js?v=__CACHE_BUST__"></script>
     <script src="/js/components/VideoPlayer.js?v=__CACHE_BUST__"></script>
     <script src="/js/components/ChannelList.js?v=__CACHE_BUST__"></script>
     <script src="/js/components/SourceManager.js?v=__CACHE_BUST__"></script>

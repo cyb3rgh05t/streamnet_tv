@@ -273,6 +273,26 @@ class SettingsPage {
       this.app.player.saveSettings();
     });
 
+    // ── Native VLC Player toggle (Desktop only) ──────────────────────────────
+    const nativePlayerToggle = document.getElementById(
+      "setting-native-player-tc",
+    );
+    const nativePlayerRow = document.getElementById(
+      "setting-native-player-row",
+    );
+    if (nativePlayerRow) {
+      // Only show the row when inside the Tauri desktop app
+      nativePlayerRow.style.display = window.__TAURI__ ? "flex" : "none";
+    }
+    if (nativePlayerToggle) {
+      nativePlayerToggle.checked = s.useNativePlayer === true;
+      nativePlayerToggle.addEventListener("change", () => {
+        this.app.player.settings.useNativePlayer = nativePlayerToggle.checked;
+        this.app.player.saveSettings();
+      });
+    }
+    // ── End Native VLC Player toggle ─────────────────────────────────────────
+
     autoTranscodeToggle?.addEventListener("change", () => {
       this.app.player.settings.autoTranscode = autoTranscodeToggle.checked;
       this.app.player.saveSettings();
@@ -634,11 +654,11 @@ class SettingsPage {
     );
     if (sourcesTab) sourcesTab.style.display = "";
 
-    // Transcoding tab: admin only (global settings)
+    // Transcoding tab: available to all users
     const transcodeTab = document.querySelector(
       '#page-settings .settings-nav .tab[data-tab="transcode"]',
     );
-    if (transcodeTab) transcodeTab.style.display = isAdmin ? "" : "none";
+    if (transcodeTab) transcodeTab.style.display = "";
 
     // Users tab: admin only
     const usersTab = document.getElementById("users-tab");
@@ -657,11 +677,7 @@ class SettingsPage {
     const activeTab = document.querySelector(
       "#page-settings .settings-main > .tab-content.active",
     );
-    if (
-      !isAdmin &&
-      activeTab &&
-      ["tab-transcode", "tab-users"].includes(activeTab.id)
-    ) {
+    if (!isAdmin && activeTab && activeTab.id === "tab-users") {
       this.switchTab("player");
     }
 
