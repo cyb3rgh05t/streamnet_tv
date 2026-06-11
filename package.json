@@ -11,9 +11,9 @@
     "mobile:add:android": "cap add android",
     "mobile:sync": "cap sync",
     "mobile:open:android": "cap open android",
-    "desktop:dev": "cd src-tauri && cargo tauri dev",
-    "desktop:build": "cd src-tauri && cargo tauri build",
-    "desktop:build:windows": "cd src-tauri && cargo tauri build --target x86_64-pc-windows-msvc"
+    "desktop:dev": "npx tauri dev",
+    "desktop:build": "npx tauri build",
+    "desktop:build:windows": "npx tauri build --target x86_64-pc-windows-msvc"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.0",

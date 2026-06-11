@@ -20,3 +20,14 @@ StreamNet TV is a modern, web-based IPTV player featuring Live TV, EPG, Movies (
 - **🔊 Smart Audio**: Configurable 5.1→Stereo downmix presets (ITU, Night Mode, Cinematic) with automatic passthrough for compatible sources.
 - **📦 Stream Processing**: Auto-detection of stream codecs with smart remux/transcode decisions.
 - **🐳 Docker Ready**: Easy deployment containerization.
+
+## Screenshots
+
+<div align="center">
+  <img src="public/img/screenshots/dashboard.jpg" width="45%" alt="Dashboard" />
+  <img src="public/img/screenshots/live.jpg" width="45%" alt="Live TV" />
+  <img src="public/img/screenshots/guide.jpg" width="45%" alt="TV Guide" />
+  <img src="public/img/screenshots/serien.jpg" width="45%" alt="Series" />
+  <img src="public/img/screenshots/filme.jpg" width="45%" alt="Movies" />
+  <img src="public/img/screenshots/settings.jpg" width="45%" alt="Settings" />
+</div>
