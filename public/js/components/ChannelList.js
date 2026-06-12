@@ -8,6 +8,7 @@ class ChannelList {
     this.container = document.getElementById("channel-list");
     this.searchInput = document.getElementById("channel-search");
     this.sourceSelect = document.getElementById("source-select");
+    this.categorySelect = document.getElementById("live-category-select");
     this.showHiddenCheckbox = document.getElementById("show-hidden");
     this.toggleGroupsBtn = document.getElementById("toggle-groups");
     this.contextMenu = document.getElementById("context-menu");
@@ -171,6 +172,13 @@ class ChannelList {
   }
 
   selectLiveGroup(groupName, sourceId = null) {
+    if (!groupName) {
+      this.selectedLiveGroup = null;
+      this.notifyLiveGroupChanged();
+      this.render();
+      return;
+    }
+
     const normalizedSourceId =
       sourceId !== null && sourceId !== undefined && sourceId !== ""
         ? String(sourceId)
@@ -184,6 +192,35 @@ class ChannelList {
     this.render();
   }
 
+  getSelectedSourceIdFromFilter() {
+    const sourceValue = this.sourceSelect?.value || "";
+    if (!sourceValue) return null;
+
+    const [, sourceId] = sourceValue.split(":");
+    return sourceId ? String(sourceId) : null;
+  }
+
+  getProviderOrderedGroupNames() {
+    const ordered = [];
+    const seen = new Set();
+
+    this.groups.forEach((group) => {
+      const name = String(group?.name || "").trim();
+      if (!name || name === "Favorites" || seen.has(name)) return;
+      seen.add(name);
+      ordered.push(name);
+    });
+
+    this.channels.forEach((channel) => {
+      const name = String(channel?.groupTitle || "Uncategorized").trim();
+      if (!name || name === "Favorites" || seen.has(name)) return;
+      seen.add(name);
+      ordered.push(name);
+    });
+
+    return ordered;
+  }
+
   init() {
     // Search handler (debounced)
     let searchTimeout;
@@ -191,6 +228,7 @@ class ChannelList {
       clearTimeout(searchTimeout);
       searchTimeout = setTimeout(() => {
         this.render();
+        window.dispatchEvent(new Event("liveSearchChanged"));
       }, 300);
     });
 
@@ -200,6 +238,23 @@ class ChannelList {
       this.notifyLiveGroupChanged();
       this.loadChannels();
     });
+
+    if (this.categorySelect) {
+      this.categorySelect.addEventListener("change", () => {
+        const selectedGroupName = this.categorySelect.value || "";
+        if (!selectedGroupName) {
+          this.selectedLiveGroup = null;
+          this.notifyLiveGroupChanged();
+          this.render();
+          return;
+        }
+
+        this.selectLiveGroup(
+          selectedGroupName,
+          this.getSelectedSourceIdFromFilter(),
+        );
+      });
+    }
 
     // Show hidden toggle
     if (this.showHiddenCheckbox) {
@@ -346,6 +401,7 @@ class ChannelList {
    */
   render() {
     const searchTerm = this.searchInput.value.toLowerCase();
+    const selectedCategory = this.categorySelect?.value || "";
     const showHidden = this.showHiddenCheckbox
       ? this.showHiddenCheckbox.checked
       : false;
@@ -371,6 +427,12 @@ class ChannelList {
           String(ch.groupTitle ?? "")
             .toLowerCase()
             .includes(searchTerm),
+      );
+    }
+
+    if (selectedCategory) {
+      this.filteredChannels = this.filteredChannels.filter(
+        (ch) => String(ch.groupTitle || "Uncategorized") === selectedCategory,
       );
     }
 
@@ -877,6 +939,37 @@ class ChannelList {
     }
   }
 
+  rebuildCategoryOptions() {
+    if (!this.categorySelect) return;
+
+    const currentValue = this.categorySelect.value || "";
+    const categories = this.getProviderOrderedGroupNames();
+    const hasFavorites = this.channels.some((channel) =>
+      this.isFavorite(channel.sourceId, channel.id),
+    );
+
+    this.categorySelect.innerHTML = `<option value="">${this.tr("common.allGroups")}</option>`;
+    if (hasFavorites) {
+      const favoritesOption = document.createElement("option");
+      favoritesOption.value = "Favorites";
+      favoritesOption.textContent = this.tr("common.favorites");
+      this.categorySelect.appendChild(favoritesOption);
+    }
+
+    categories.forEach((categoryName) => {
+      const option = document.createElement("option");
+      option.value = categoryName;
+      option.textContent = categoryName;
+      this.categorySelect.appendChild(option);
+    });
+
+    if (currentValue && categories.includes(currentValue)) {
+      this.categorySelect.value = currentValue;
+    } else {
+      this.categorySelect.value = "";
+    }
+  }
+
   /**
    * Load channels from selected source
    */
@@ -909,6 +1002,7 @@ class ChannelList {
       // Load hidden items and favorites
       await Promise.all([this.loadHiddenItems(), this.loadFavorites()]);
 
+      this.rebuildCategoryOptions();
       this.render();
     } catch (err) {
       console.error("Error loading channels:", err);
@@ -950,6 +1044,7 @@ class ChannelList {
       }
 
       await Promise.all([this.loadHiddenItems(), this.loadFavorites()]);
+      this.rebuildCategoryOptions();
       this.render();
     } catch (err) {
       console.error("Error loading all channels:", err);

@@ -321,6 +321,79 @@ class App {
     // Desktop sidebar collapse toggle
     const sidebarCollapseBtn = document.getElementById("sidebar-collapse-btn");
     const sidebarExpandBtn = document.getElementById("sidebar-expand-btn");
+    const sourceSelect = document.getElementById("source-select");
+    const liveCategorySelect = document.getElementById("live-category-select");
+    const searchInput = document.getElementById("channel-search");
+    const searchWrapper = searchInput?.closest(".search-wrapper");
+    const liveSidebarHeaderRow = document.getElementById(
+      "live-sidebar-header-row",
+    );
+    const liveSidebarControls = document.getElementById(
+      "live-sidebar-controls",
+    );
+    const liveMobileControls = document.getElementById("live-mobile-controls");
+
+    const syncLiveControlLayout = () => {
+      if (!sourceSelect || !searchWrapper) return;
+
+      const sourceControlNode =
+        sourceSelect.closest(".custom-select") || sourceSelect;
+      const groupControlNode =
+        (liveCategorySelect &&
+          (liveCategorySelect.closest(".custom-select") ||
+            liveCategorySelect)) ||
+        null;
+
+      if (isMobileSidebarViewport()) {
+        if (liveMobileControls) {
+          if (!liveMobileControls.contains(sourceControlNode)) {
+            liveMobileControls.appendChild(sourceControlNode);
+          }
+          if (
+            groupControlNode &&
+            !liveMobileControls.contains(groupControlNode)
+          ) {
+            liveMobileControls.appendChild(groupControlNode);
+          }
+          if (!liveMobileControls.contains(searchWrapper)) {
+            liveMobileControls.appendChild(searchWrapper);
+          }
+        }
+      } else {
+        if (
+          homeLayout &&
+          channelToggleBtn &&
+          !homeLayout.contains(channelToggleBtn)
+        ) {
+          homeLayout.insertBefore(
+            channelToggleBtn,
+            channelOverlay || homeLayout.firstChild,
+          );
+        }
+
+        if (
+          liveSidebarHeaderRow &&
+          !liveSidebarHeaderRow.contains(searchWrapper)
+        ) {
+          liveSidebarHeaderRow.insertBefore(
+            searchWrapper,
+            sidebarCollapseBtn || null,
+          );
+        }
+
+        if (liveSidebarControls) {
+          if (!liveSidebarControls.contains(sourceControlNode)) {
+            liveSidebarControls.appendChild(sourceControlNode);
+          }
+          if (
+            groupControlNode &&
+            !liveSidebarControls.contains(groupControlNode)
+          ) {
+            liveSidebarControls.appendChild(groupControlNode);
+          }
+        }
+      }
+    };
 
     sidebarCollapseBtn?.addEventListener("click", () => {
       const isCollapsed = channelSidebar?.classList.contains("collapsed");
@@ -337,8 +410,10 @@ class App {
     if (isMobileSidebarViewport()) {
       setChannelDrawerOpen(false);
     }
+    syncLiveControlLayout();
 
     window.addEventListener("resize", () => {
+      syncLiveControlLayout();
       if (!isMobileSidebarViewport()) {
         setChannelDrawerOpen(false);
         const collapsed = localStorage.getItem("sidebarCollapsed") === "true";
@@ -405,11 +480,6 @@ class App {
         this.navigateTo("watch");
       });
     }
-
-    // Toggle groups button
-    document.getElementById("toggle-groups").addEventListener("click", () => {
-      this.channelList.toggleAllGroups();
-    });
 
     // Search clear buttons (global handler for all)
     document.querySelectorAll(".search-clear").forEach((btn) => {

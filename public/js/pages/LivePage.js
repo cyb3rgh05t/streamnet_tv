@@ -8,6 +8,7 @@ class LivePage {
     this.handleKeydown = this.handleKeydown.bind(this);
     this.handleChannelChanged = this.handleChannelChanged.bind(this);
     this.handleLiveGroupChanged = this.handleLiveGroupChanged.bind(this);
+    this.handleLiveSearchChanged = this.handleLiveSearchChanged.bind(this);
     this.liveEpgTimer = null;
     this.selectedLiveGroup = null;
   }
@@ -84,6 +85,10 @@ class LivePage {
 
   handleLiveGroupChanged(e) {
     this.selectedLiveGroup = e?.detail || null;
+    this.renderLiveEpgPanel();
+  }
+
+  handleLiveSearchChanged() {
     this.renderLiveEpgPanel();
   }
 
@@ -341,6 +346,11 @@ class LivePage {
     const activeSourceId =
       selectedGroup?.sourceId || currentSelected?.sourceId || null;
     const isFavoritesGroup = activeGroupTitle === "Favorites";
+    const liveSearchTerm = String(
+      this.app.channelList?.searchInput?.value || "",
+    )
+      .toLowerCase()
+      .trim();
     const scopedChannels = activeGroupTitle
       ? allChannels.filter((ch) => {
           if (
@@ -358,9 +368,17 @@ class LivePage {
         })
       : allChannels;
 
+    const searchScopedChannels = liveSearchTerm
+      ? scopedChannels.filter((ch) =>
+          String(ch.name || "")
+            .toLowerCase()
+            .includes(liveSearchTerm),
+        )
+      : scopedChannels;
+
     const unique = new Set();
     const orderedChannels = [];
-    for (const ch of scopedChannels) {
+    for (const ch of searchScopedChannels) {
       const key = `${ch.sourceId}:${ch.id}`;
       if (!unique.has(key)) {
         unique.add(key);
@@ -612,6 +630,7 @@ class LivePage {
     document.addEventListener("keydown", this.handleKeydown);
     window.addEventListener("channelChanged", this.handleChannelChanged);
     window.addEventListener("liveGroupChanged", this.handleLiveGroupChanged);
+    window.addEventListener("liveSearchChanged", this.handleLiveSearchChanged);
     this.selectedLiveGroup = this.app.channelList?.selectedLiveGroup || null;
 
     // Only reload if channels aren't already loaded
@@ -630,6 +649,10 @@ class LivePage {
     document.removeEventListener("keydown", this.handleKeydown);
     window.removeEventListener("channelChanged", this.handleChannelChanged);
     window.removeEventListener("liveGroupChanged", this.handleLiveGroupChanged);
+    window.removeEventListener(
+      "liveSearchChanged",
+      this.handleLiveSearchChanged,
+    );
     this.stopLiveEpgTimer();
   }
 }

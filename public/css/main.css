@@ -691,6 +691,118 @@ h4 {
   position: relative;
 }
 
+.live-mobile-header {
+  display: none;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.live-mobile-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.live-mobile-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    "source category"
+    "search search";
+  gap: var(--space-sm);
+  align-items: center;
+  min-width: 0;
+}
+
+.live-mobile-controls .source-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.live-mobile-controls #source-select {
+  grid-area: source;
+}
+
+.live-mobile-controls .custom-select[data-select-id="source-select"] {
+  grid-area: source;
+}
+
+.live-mobile-controls #live-category-select {
+  grid-area: category;
+}
+
+.live-mobile-controls .custom-select[data-select-id="live-category-select"] {
+  grid-area: category;
+}
+
+.live-mobile-controls .search-wrapper {
+  grid-area: search;
+  width: 100%;
+}
+
+.live-mobile-controls .channel-toggle-btn {
+  display: none;
+  position: static;
+  top: auto;
+  left: auto;
+  z-index: auto;
+  padding: 0.48rem 0.7rem;
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+  border: 1px solid rgba(var(--color-accent-rgb), 0.26);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.12)),
+    var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+}
+
+.live-mobile-controls .channel-toggle-btn:hover {
+  border-color: rgba(var(--color-accent-rgb), 0.5);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.18)),
+    var(--color-bg-hover);
+  box-shadow: none;
+}
+
+.live-mobile-controls .channel-toggle-btn.is-open {
+  background: rgba(var(--color-accent-rgb), 0.18);
+  border-color: rgba(var(--color-accent-rgb), 0.46);
+}
+
+#live-sidebar-controls #live-category-select {
+  display: none;
+}
+
+.live-mobile-controls #live-category-select {
+  display: block;
+}
+
+@media (max-width: 1024px) {
+  #page-live.active {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #page-live.active .home-layout > #channel-toggle-btn {
+    display: none !important;
+  }
+
+  .live-mobile-header {
+    display: flex;
+  }
+
+  .home-layout {
+    flex: 1;
+    min-height: 0;
+  }
+}
+
 /* Fix scroll sidebar on desktop (Safari / flex bug) */
 .main-content,
 .page,
@@ -1764,12 +1876,16 @@ select::-ms-expand {
 
 /* Favorites */
 .group-header.favorites-group {
-  background: linear-gradient(to right, rgba(239, 68, 68, 0.1), transparent);
-  border-left: 3px solid var(--color-error);
+  background: linear-gradient(
+    to right,
+    rgba(var(--color-accent-rgb), 0.14),
+    transparent
+  );
+  border-left: 3px solid var(--color-accent);
 }
 
 .group-header.favorites-group .group-name {
-  color: var(--color-error);
+  color: var(--color-accent);
   font-weight: 600;
 }
 

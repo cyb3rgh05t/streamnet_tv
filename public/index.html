@@ -195,6 +195,11 @@
 
         <!-- Live TV Page (formerly Home) -->
         <div id="page-live" class="page">
+          <div class="live-mobile-header" id="live-mobile-header">
+            <h2 id="live-mobile-title">Live TV</h2>
+            <div class="live-mobile-controls" id="live-mobile-controls"></div>
+          </div>
+
           <div class="home-layout">
             <!-- Channel Toggle Button (Mobile) -->
             <button
@@ -241,7 +246,7 @@
             <!-- Channel Sidebar -->
             <aside class="channel-sidebar" id="channel-sidebar">
               <div class="sidebar-header">
-                <div class="sidebar-header-row">
+                <div class="sidebar-header-row" id="live-sidebar-header-row">
                   <div class="search-wrapper">
                     <input
                       type="text"
@@ -272,27 +277,13 @@
                     </svg>
                   </button>
                 </div>
-                <div class="sidebar-controls">
+                <div class="sidebar-controls" id="live-sidebar-controls">
                   <select id="source-select" class="source-select">
                     <option value="">All Sources</option>
                   </select>
-                  <button
-                    id="toggle-groups"
-                    class="btn btn-sm btn-ghost"
-                    title="Expand/Collapse All"
-                  >
-                    <span
-                      ><svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        class="icon"
-                      >
-                        <path
-                          d="M12 5.83L15.17 9l1.41-1.41L12 3 7.41 7.59 8.83 9 12 5.83zm0 12.34L8.83 15l-1.41 1.41L12 21l4.59-4.59L15.17 15 12 18.17z"
-                        /></svg
-                    ></span>
-                  </button>
+                  <select id="live-category-select" class="source-select">
+                    <option value="">All Groups</option>
+                  </select>
                 </div>
               </div>
               <div id="channel-list" class="channel-list">

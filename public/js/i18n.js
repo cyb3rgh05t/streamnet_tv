@@ -877,6 +877,7 @@
     setText("#now-playing-text", "nav.nowPlaying");
     setText('.nav-link[data-page="home"] span:last-child', "nav.home");
     setText('.nav-link[data-page="live"] span:last-child', "nav.live");
+    setText("#live-mobile-title", "nav.live");
     setText('.nav-link[data-page="guide"] span:last-child', "nav.guide");
     setText('.nav-link[data-page="movies"] span:last-child', "nav.movies");
     setText('.nav-link[data-page="series"] span:last-child', "nav.series");
@@ -889,6 +890,7 @@
     setTitle("#channel-sidebar .search-clear", "common.clearSearch");
 
     setOptionByValue("source-select", "", "common.allSources");
+    setOptionByValue("live-category-select", "", "common.allGroups");
     setOptionByValue("epg-group-select", "", "common.allGroups");
     setOptionByValue("movies-source-select", "", "common.allSources");
     setOptionByValue("movies-category-select", "", "common.allCategories");
