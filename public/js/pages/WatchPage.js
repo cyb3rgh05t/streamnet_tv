@@ -37,6 +37,9 @@ class WatchPage {
     this.loadingSpinner = document.getElementById("watch-loading");
     this.seekingOverlay = document.getElementById("watch-seeking-overlay");
     this.seekingText = document.getElementById("watch-seeking-text");
+    this.seekingActionEl = document.getElementById("watch-seeking-action");
+    this.seekingTimeEl = document.getElementById("watch-seeking-time");
+    this.seekingPercentEl = document.getElementById("watch-seeking-percent");
 
     // Next episode
     this.nextEpisodePanel = document.getElementById("watch-next-episode");
@@ -86,6 +89,8 @@ class WatchPage {
     this.lastMediaRecoveryAt = 0;
     this.seekingReasons = new Set();
     this.seekingReasonTimers = new Map();
+    this.seekOverlayHint = null;
+    this.wasPlayingBeforeSeek = false;
     this.currentPlaybackMode = "unknown";
 
     this.init();
@@ -408,11 +413,36 @@ class WatchPage {
 
   async startTranscodeSessionWithFallback(url, options = {}) {
     const requestedSeekOffset = Math.max(0, Number(options.seekOffset) || 0);
+    const requestedSeekMode = String(options.seekMode || "input").toLowerCase();
+    const hasSeekOffset = requestedSeekOffset > 0;
     try {
       const playlistUrl = await this.startTranscodeSession(url, options);
       return { playlistUrl, appliedSeekOffset: requestedSeekOffset };
     } catch (err) {
       console.error("[WatchPage] Session start failed:", err);
+
+      // Some providers fail either input-seek or output-seek depending on how
+      // the stream backend handles Range/indexing. Try the alternate seek mode
+      // before dropping seek offset entirely.
+      if (hasSeekOffset) {
+        const alternateSeekMode =
+          requestedSeekMode === "output" ? "input" : "output";
+        try {
+          console.warn(
+            `[WatchPage] Retrying transcode session with ${alternateSeekMode} seek mode...`,
+          );
+          const playlistUrl = await this.startTranscodeSession(url, {
+            ...options,
+            seekMode: alternateSeekMode,
+          });
+          return { playlistUrl, appliedSeekOffset: requestedSeekOffset };
+        } catch (retrySeekModeErr) {
+          console.error(
+            `[WatchPage] ${alternateSeekMode} seek-mode retry failed:`,
+            retrySeekModeErr,
+          );
+        }
+      }
 
       // Copy mode can fail around keyframes/start offsets. Retry once with encode mode.
       if (options.videoMode === "copy") {
@@ -431,8 +461,7 @@ class WatchPage {
       }
 
       // Last fallback for resume edge-cases: start from 0 to at least keep playback alive.
-      const seekOffset = Number(options.seekOffset) || 0;
-      if (seekOffset > 0) {
+      if (hasSeekOffset) {
         try {
           console.warn(
             "[WatchPage] Retrying transcode session without seek offset (copy mode)...",
@@ -441,6 +470,7 @@ class WatchPage {
             ...options,
             videoMode: "copy",
             seekOffset: 0,
+            seekMode: "input",
           });
           return { playlistUrl, appliedSeekOffset: 0 };
         } catch (retryNoSeekCopyErr) {
@@ -458,6 +488,7 @@ class WatchPage {
             ...options,
             videoMode: "encode",
             seekOffset: 0,
+            seekMode: "input",
           });
           return { playlistUrl, appliedSeekOffset: 0 };
         } catch (retryNoSeekErr) {
@@ -880,10 +911,12 @@ class WatchPage {
     });
 
     this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      this.video.play().catch((e) => {
-        if (e.name !== "AbortError")
-          console.error("[WatchPage] Autoplay error:", e);
-      });
+      if (this.seekingReasons.size === 0) {
+        this.video.play().catch((e) => {
+          if (e.name !== "AbortError")
+            console.error("[WatchPage] Autoplay error:", e);
+        });
+      }
     });
 
     this.hls.on(Hls.Events.ERROR, (event, data) => {
@@ -975,19 +1008,31 @@ class WatchPage {
   }
 
   skip(seconds) {
-    if (this.video) {
-      const duration = this.getSeekableDuration();
-      let nextAbsolute = this.getAbsoluteCurrentTime() + Number(seconds || 0);
-      if (duration > 0) {
-        nextAbsolute = Math.min(nextAbsolute, duration);
-      }
-      nextAbsolute = Math.max(0, nextAbsolute);
-      const relativeTarget = Math.max(
-        0,
-        nextAbsolute - this.playbackStartOffset,
-      );
-      this.video.currentTime = relativeTarget;
+    if (!this.video) return;
+    const duration = this.getSeekableDuration();
+    let nextAbsolute = this.getAbsoluteCurrentTime() + Number(seconds || 0);
+    if (duration > 0) {
+      nextAbsolute = Math.min(nextAbsolute, duration);
     }
+    nextAbsolute = Math.max(0, nextAbsolute);
+    this.setSeekOverlayHint(nextAbsolute, duration);
+
+    const startOffset = this.playbackStartOffset || 0;
+    // If the skip target is before the current session's start, restart the session
+    if (this.currentSessionId && nextAbsolute < startOffset) {
+      this.restartTranscodeAtOffset(nextAbsolute, { preferEncode: true }).catch(
+        (err) => {
+          console.warn(
+            "[WatchPage] Skip backward restart failed:",
+            err?.message || err,
+          );
+        },
+      );
+      return;
+    }
+
+    const relativeTarget = Math.max(0, nextAbsolute - startOffset);
+    this.video.currentTime = relativeTarget;
   }
 
   seek(percent) {
@@ -1017,18 +1062,30 @@ class WatchPage {
     }
 
     this.lastSeekCommit = { value, at: now };
+    const duration = this.getSeekableDuration();
+    if (duration > 0) {
+      const absoluteTarget = (value / 100) * duration;
+      this.setSeekOverlayHint(absoluteTarget, duration);
+    } else {
+      this.clearSeekOverlayHint();
+    }
     this.startSeekingState("user-seek", 10000);
 
-    const duration = this.getSeekableDuration();
     if (this.video && this.currentSessionId && duration > 0) {
       const absoluteTarget = (value / 100) * duration;
-      const relativeTarget = Math.max(
-        0,
-        absoluteTarget - (this.playbackStartOffset || 0),
-      );
+      const startOffset = this.playbackStartOffset || 0;
+      const relativeTarget = Math.max(0, absoluteTarget - startOffset);
 
-      if (!this.canSeekNativelyTo(relativeTarget)) {
-        this.ensureLargeSeekReachable(value).catch((err) => {
+      // Trigger a session restart if:
+      // 1. The target is before the current session's start offset (backward seek past start), OR
+      // 2. The target is not natively seekable in the current HLS buffer (large forward seek)
+      const needsRestart =
+        absoluteTarget < startOffset || !this.canSeekNativelyTo(relativeTarget);
+
+      if (needsRestart) {
+        this.restartTranscodeAtOffset(absoluteTarget, {
+          preferEncode: true,
+        }).catch((err) => {
           console.warn(
             "[WatchPage] Large seek fallback failed:",
             err?.message || err,
@@ -1095,56 +1152,53 @@ class WatchPage {
 
     const target = Math.max(0, Math.floor(Number(absoluteTarget) || 0));
     if (!Number.isFinite(target)) return false;
+    this.setSeekOverlayHint(target, this.getSeekableDuration());
 
     this.isSeekRestarting = true;
     this.startSeekingState("session-restart", 12000);
     const previousSessionId = this.currentSessionId;
-    const attempts = ["encode"];
+    const videoCodec = String(
+      this.currentStreamInfo?.video || "",
+    ).toLowerCase();
+    const prefersCopy =
+      videoCodec.includes("h264") || videoCodec.includes("avc");
+    const initialVideoMode = prefersCopy ? "copy" : "encode";
 
     try {
-      for (const videoMode of attempts) {
-        try {
-          const playlistUrl = await this.startTranscodeSession(
-            this.currentUrl,
-            {
-              videoMode,
-              seekOffset: target,
-              hlsTime: 2,
-              probeSize: 1200000,
-              analyzeDuration: 1200000,
-            },
-          );
+      const sessionStart = await this.startTranscodeSessionWithFallback(
+        this.currentUrl,
+        {
+          videoMode: initialVideoMode,
+          seekOffset: target,
+          seekMode: "input",
+          hlsTime: 2,
+          probeSize: 1200000,
+          analyzeDuration: 1200000,
+        },
+      );
 
-          if (!playlistUrl) {
-            continue;
-          }
-
-          if (
-            previousSessionId &&
-            previousSessionId !== this.currentSessionId
-          ) {
-            API.request("DELETE", `/transcode/${previousSessionId}`).catch(
-              () => {},
-            );
-          }
-
-          this.playbackStartOffset = target;
-          this.resumeTime = 0;
-          this.playHls(playlistUrl);
-          this.setVolumeFromStorage();
-          return true;
-        } catch (attemptErr) {
-          console.warn(
-            `[WatchPage] Seek session retry (${videoMode}) failed:`,
-            attemptErr?.message || attemptErr,
-          );
-        }
+      const playlistUrl = sessionStart?.playlistUrl;
+      if (!playlistUrl) {
+        throw new Error("No playlist URL returned for seek restart");
       }
+
+      if (previousSessionId && previousSessionId !== this.currentSessionId) {
+        API.request("DELETE", `/transcode/${previousSessionId}`).catch(
+          () => {},
+        );
+      }
+
+      this.playbackStartOffset = Math.max(
+        0,
+        Number(sessionStart?.appliedSeekOffset) || 0,
+      );
+      this.resumeTime = 0;
+      this.playHls(playlistUrl);
+      this.setVolumeFromStorage();
+      return true;
     } finally {
       this.isSeekRestarting = false;
     }
-
-    return false;
   }
 
   getAbsoluteCurrentTime() {
@@ -1594,6 +1648,12 @@ class WatchPage {
 
   startSeekingState(reason = "user-seek", timeoutMs = 10000) {
     const key = String(reason || "user-seek");
+    if (this.seekingReasons.size === 0) {
+      this.wasPlayingBeforeSeek = Boolean(this.video && !this.video.paused);
+      if (this.wasPlayingBeforeSeek) {
+        this.video?.pause();
+      }
+    }
     this.seekingReasons.add(key);
 
     const existingTimer = this.seekingReasonTimers.get(key);
@@ -1607,9 +1667,7 @@ class WatchPage {
       this.seekingReasonTimers.set(key, timer);
     }
 
-    if (this.seekingText) {
-      this.seekingText.textContent = this.getSeekingLabel();
-    }
+    this.updateSeekingOverlayUI();
     this.seekingOverlay?.classList.remove("hidden");
   }
 
@@ -1630,6 +1688,17 @@ class WatchPage {
 
     if (this.seekingReasons.size === 0) {
       this.seekingOverlay?.classList.add("hidden");
+      this.clearSeekOverlayHint();
+      if (this.wasPlayingBeforeSeek && this.video && this.video.paused) {
+        this.wasPlayingBeforeSeek = false;
+        this.video.play().catch((err) => {
+          if (err?.name !== "AbortError") {
+            console.error("[WatchPage] Resume after seek failed:", err);
+          }
+        });
+      } else {
+        this.wasPlayingBeforeSeek = false;
+      }
     }
   }
 
@@ -1637,7 +1706,90 @@ class WatchPage {
     const isGerman = (window.I18n?.language || "")
       .toLowerCase()
       .startsWith("de");
-    return isGerman ? "Springe..." : "Seeking...";
+    const hint = this.seekOverlayHint;
+    if (!hint) return isGerman ? "Springe..." : "Seeking...";
+    const arrow =
+      hint.direction === "backward"
+        ? "←"
+        : hint.direction === "forward"
+          ? "→"
+          : "•";
+    const action = isGerman
+      ? hint.direction === "backward"
+        ? "Zurückspulen"
+        : hint.direction === "forward"
+          ? "Vorspulen"
+          : "Positionieren"
+      : hint.direction === "backward"
+        ? "Rewind"
+        : hint.direction === "forward"
+          ? "Fast Forward"
+          : "Seeking";
+    return `${arrow} ${action}`;
+  }
+
+  updateSeekingOverlayUI() {
+    const isGerman = (window.I18n?.language || "")
+      .toLowerCase()
+      .startsWith("de");
+    const hint = this.seekOverlayHint;
+    if (hint) {
+      const arrow =
+        hint.direction === "backward"
+          ? "←"
+          : hint.direction === "forward"
+            ? "→"
+            : "•";
+      const action = isGerman
+        ? hint.direction === "backward"
+          ? "Zurückspulen"
+          : hint.direction === "forward"
+            ? "Vorspulen"
+            : "Positionieren"
+        : hint.direction === "backward"
+          ? "Rewind"
+          : hint.direction === "forward"
+            ? "Fast Forward"
+            : "Seeking";
+      if (this.seekingActionEl)
+        this.seekingActionEl.textContent = `${arrow} ${action}`;
+      if (this.seekingTimeEl)
+        this.seekingTimeEl.textContent = this.formatTime(
+          hint.absoluteTarget || 0,
+        );
+      if (this.seekingPercentEl)
+        this.seekingPercentEl.textContent = Number.isFinite(hint.percent)
+          ? `${Math.round(hint.percent)}%`
+          : "";
+    } else {
+      if (this.seekingActionEl)
+        this.seekingActionEl.textContent = isGerman
+          ? "Springe..."
+          : "Seeking...";
+      if (this.seekingTimeEl) this.seekingTimeEl.textContent = "";
+      if (this.seekingPercentEl) this.seekingPercentEl.textContent = "";
+    }
+  }
+
+  setSeekOverlayHint(absoluteTarget, duration = 0) {
+    const target = Math.max(0, Number(absoluteTarget) || 0);
+    const current = this.getAbsoluteCurrentTime();
+    const delta = target - current;
+    const direction =
+      delta < -1 ? "backward" : delta > 1 ? "forward" : "neutral";
+    const percent = duration > 0 ? (target / duration) * 100 : NaN;
+
+    this.seekOverlayHint = {
+      absoluteTarget: target,
+      percent: Number.isFinite(percent)
+        ? Math.max(0, Math.min(100, percent))
+        : NaN,
+      direction,
+    };
+  }
+
+  clearSeekOverlayHint() {
+    this.seekOverlayHint = null;
   }
 
   // === Captions ===

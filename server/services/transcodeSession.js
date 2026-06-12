@@ -79,6 +79,7 @@ class TranscodeSession extends EventEmitter {
       ffmpegPath: options.ffmpegPath || "ffmpeg",
       userAgent: options.userAgent || "Mozilla/5.0",
       seekOffset: toNonNegativeNumberOr(options.seekOffset, 0),
+      seekMode: String(options.seekMode || "input").toLowerCase(),
       probeSize: toPositiveNumberOr(options.probeSize, 5000000),
       analyzeDuration: toPositiveNumberOr(options.analyzeDuration, 5000000),
       hlsTime: toPositiveNumberOr(options.hlsTime, SEGMENT_DURATION),
@@ -237,16 +238,27 @@ class TranscodeSession extends EventEmitter {
       "10",
     );
 
-    // Input seek is significantly faster for VOD resume/jumps and avoids
-    // decoding from 0->offset (which can exceed playlist startup timeout).
-    if (this.options.seekOffset > 0) {
+    const seekOffset = Number(this.options.seekOffset) || 0;
+    const seekMode = this.options.seekMode === "output" ? "output" : "input";
+
+    // Input seek: place -ss before -i so FFmpeg can use HTTP Range to jump
+    // directly to the offset without decoding from the start.
+    if (seekOffset > 0 && seekMode === "input") {
       args.push("-ss", String(this.options.seekOffset));
     }
 
-    // Prevent Range/HEAD style seeks some providers reject.
-    args.push("-seekable", "0");
+    // Only prevent Range/HEAD requests when we are NOT doing an active seek.
+    // With seekOffset > 0 we need HTTP Range so FFmpeg can fast-forward;
+    // disabling it here would force a full linear decode before the first segment.
+    if (seekOffset === 0) {
+      args.push("-seekable", "0");
+    }
 
     args.push("-i", this.url);
+
+    if (seekOffset > 0 && seekMode === "output") {
+      args.push("-ss", String(seekOffset));
+    }
 
     // Map streams
     args.push("-map", "0:v:0");

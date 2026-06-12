@@ -222,10 +222,6 @@ class App {
       // Close menu when a nav link is clicked
       document.querySelectorAll(".nav-link").forEach((link) => {
         link.addEventListener("click", () => {
-          if (isDesktopOrTablet() && navbar?.classList.contains("collapsed")) {
-            setNavbarCollapsed(false);
-          }
-
           mobileMenuToggle.classList.remove("active");
           navbarMenu.classList.remove("active");
         });
@@ -389,16 +385,10 @@ class App {
     });
 
     // Navigation handling
-    const collapseOnNavPages = new Set(["live", "movies", "series", "guide"]);
     document.querySelectorAll(".nav-link").forEach((link) => {
       link.addEventListener("click", (e) => {
         e.preventDefault();
         this.navigateTo(link.dataset.page);
-
-        // Keep the sidebar open for non-content pages.
-        if (isDesktopOrTablet()) {
-          setNavbarCollapsed(collapseOnNavPages.has(link.dataset.page));
-        }
 
         // On desktop, always show groups sidebar when entering LiveTV.
         if (link.dataset.page === "live" && !isMobileSidebarViewport()) {

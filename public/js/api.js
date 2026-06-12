@@ -74,9 +74,11 @@ const API = {
         window.location.href = "/login.html";
         return;
       }
-      throw new Error(
-        result.error || `Server responded with ${response.status}`,
-      );
+      const extraParts = [result.reason, result.details].filter(Boolean);
+      const extraText = extraParts.length ? ` (${extraParts.join(" | ")})` : "";
+      const baseError =
+        result.error || `Server responded with ${response.status}`;
+      throw new Error(`${baseError}${extraText}`);
     }
 
     return result;

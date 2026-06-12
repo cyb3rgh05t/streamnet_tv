@@ -32,6 +32,7 @@ router.post("/session", async (req, res) => {
   const {
     url,
     seekOffset,
+    seekMode,
     videoMode,
     videoCodec,
     videoHeight,
@@ -59,6 +60,7 @@ router.post("/session", async (req, res) => {
       ffmpegPath,
       userAgent,
       seekOffset: seekOffset || 0,
+      seekMode,
       hwEncoder: settings.hwEncoder || "software",
       maxResolution: settings.maxResolution || "1080p",
       quality: settings.quality || "medium",
@@ -92,8 +94,10 @@ router.post("/session", async (req, res) => {
     await session.start();
 
     // Wait for playlist to be ready (first segments generated).
-    // Copy-mode and resume offsets can take longer to reach the first keyframe.
-    const ready = await session.waitForPlaylist(45000);
+    // Seek sessions need more time: FFmpeg must process from the seek point to
+    // the first keyframe before any segment is ready.
+    const playlistTimeout = (seekOffset || 0) > 0 ? 90000 : 45000;
+    const ready = await session.waitForPlaylist(playlistTimeout);
 
     if (!ready) {
       const reason = session.error || "Playlist not generated in time";
