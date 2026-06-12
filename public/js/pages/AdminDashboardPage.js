@@ -13,13 +13,9 @@ class AdminDashboardPage {
     this.selectedHistoryMonth = "latest";
     this.latestStats = null;
     this.showHistoryTrendline = true;
-    this.playbackHistoryRange = "month";
-    this.selectedPlaybackMonth = "latest";
-    this.showPlaybackTrendline = true;
     this._onHistoryResize = () => {
       if (this.latestStats) {
         this.renderHistorySuite(this.latestStats);
-        this.renderPlaybackTelemetrySuite(this.latestStats);
       }
     };
   }
@@ -331,34 +327,6 @@ class AdminDashboardPage {
     select.disabled = this.historyRange !== "month";
   }
 
-  updatePlaybackMonthSelect(labels = []) {
-    const select = document.getElementById("admin-playback-month-select");
-    if (!select) return;
-
-    const options = this.getHistoryMonthOptions(labels);
-    if (!options.length) {
-      select.innerHTML = `<option value="latest">${this.tr("admin.month", {}, "Monat")}</option>`;
-      select.disabled = true;
-      return;
-    }
-
-    const latestValue = options[options.length - 1].value;
-    if (
-      this.selectedPlaybackMonth === "latest" ||
-      !options.some((opt) => opt.value === this.selectedPlaybackMonth)
-    ) {
-      this.selectedPlaybackMonth = latestValue;
-    }
-
-    select.innerHTML = options
-      .map(
-        (opt) =>
-          `<option value="${opt.value}" ${opt.value === this.selectedPlaybackMonth ? "selected" : ""}>${opt.text}</option>`,
-      )
-      .join("");
-    select.disabled = this.playbackHistoryRange !== "month";
-  }
-
   filterDailySeries(labels = [], values = []) {
     const entries = labels.map((label, idx) => ({
       label,
@@ -381,31 +349,6 @@ class AdminDashboardPage {
       "30d": 30,
     };
     const limit = rangeLimits[this.historyRange] || 30;
-    return entries.slice(-limit);
-  }
-
-  filterPlaybackDailySeries(labels = [], values = []) {
-    const entries = labels.map((label, idx) => ({
-      label,
-      value: Number(values[idx]) || 0,
-      parsed: this.extractDayMonth(label),
-    }));
-
-    if (this.playbackHistoryRange === "month") {
-      const monthOptions = this.getHistoryMonthOptions(labels);
-      const fallbackMonth = monthOptions.length
-        ? monthOptions[monthOptions.length - 1].value
-        : null;
-      const monthKey = this.selectedPlaybackMonth || fallbackMonth;
-      return entries.filter((item) => item.parsed?.monthKey === monthKey);
-    }
-
-    const rangeLimits = {
-      "7d": 7,
-      "14d": 14,
-      "30d": 30,
-    };
-    const limit = rangeLimits[this.playbackHistoryRange] || 30;
     return entries.slice(-limit);
   }
 
@@ -691,89 +634,6 @@ class AdminDashboardPage {
       .join("");
   }
 
-  renderPlaybackTelemetryHistory(targetId, labels = [], values = []) {
-    const host = document.getElementById(targetId);
-    if (!host) return;
-
-    const filtered = this.filterPlaybackDailySeries(labels, values);
-    if (!filtered.length) {
-      host.innerHTML = `<div class="admin-chart-empty">${this.tr("admin.noHistoryData", {}, "Keine History Daten")}</div>`;
-      return;
-    }
-
-    const cleanLabels = filtered.map((entry) => entry.label);
-    const cleanValues = filtered.map((entry) => entry.value);
-
-    const max = Math.max(1, ...cleanValues);
-    const total = cleanValues.reduce((sum, value) => sum + value, 0);
-    const avg = Math.round(total / Math.max(1, cleanValues.length));
-    const highest = Math.max(...cleanValues);
-    const lowest = Math.min(...cleanValues);
-    const points = cleanValues.length;
-
-    const yTicks = [max, Math.round(max * 0.66), Math.round(max * 0.33), 0]
-      .map((tick) => `<span>${tick}</span>`)
-      .join("");
-
-    const cols = cleanValues
-      .map((value, idx) => {
-        const pct =
-          value === 0 ? 2 : Math.max(10, Math.round((value / max) * 100));
-        const isHighest = value === highest;
-        const isLowest = value === lowest;
-        const classes = ["admin-history-daily-col"];
-        if (isHighest) classes.push("is-best");
-        if (isLowest) classes.push("is-low");
-        if (value === 0) classes.push("is-zero");
-
-        return `
-          <div class="${classes.join(" ")}" title="${cleanLabels[idx]}: ${value}">
-            <div class="admin-history-bar-track" style="--bar-pct:${pct.toFixed(2)}">
-              <div class="admin-history-bar" style="--bar-pct:${pct.toFixed(2)}">
-                <span class="admin-history-value-pill on-bar">${value}</span>
-              </div>
-            </div>
-            <span class="admin-history-axis-label">${this.extractDayMonth(cleanLabels[idx])?.dayLabel || String(cleanLabels[idx] || "").slice(-5)}</span>
-          </div>
-        `;
-      })
-      .join("");
-
-    host.innerHTML = `
-      <div class="admin-history-kpis">
-        <div><span>${this.tr("admin.maxPeak", {}, "Max Peak")}</span><strong>${highest}</strong></div>
-        <div><span>${this.tr("admin.avgPeak", {}, "Avg Peak")}</span><strong>${avg}</strong></div>
-        <div><span>${this.tr("admin.totalEvents", {}, "Total Events")}</span><strong>${total}</strong></div>
-      </div>
-      <div class="admin-history-daily-chart">
-        <div class="admin-history-y-axis">${yTicks}</div>
-        ${
-          this.showPlaybackTrendline
-            ? `<svg class="admin-history-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="" /></svg>`
-            : ""
-        }
-        <div class="admin-history-daily-bars" style="--history-cols:${points}; --history-gap:${points > 24 ? 4 : 8}px;">${cols}</div>
-      </div>
-      <div class="admin-history-legend">
-        <span><i class="swatch best"></i>${this.tr("admin.highestPeak", {}, "Highest Peak")}</span>
-        <span><i class="swatch low"></i>${this.tr("admin.lowestPeak", {}, "Lowest Peak")}</span>
-        ${this.showPlaybackTrendline ? `<span><i class="swatch trend"></i>${this.tr("admin.trend", {}, "Trend")}</span>` : ""}
-      </div>
-    `;
-
-    if (this.showPlaybackTrendline) {
-      requestAnimationFrame(() => this.paintDailyTrendline(host, cleanValues));
-    }
-  }
-
-  renderPlaybackTelemetrySuite(stats = {}) {
-    this.renderPlaybackTelemetryHistory(
-      "admin-chart-playback-telemetry",
-      stats.charts?.playbackTelemetryDaily?.labels || [],
-      stats.charts?.playbackTelemetryDaily?.values || [],
-    );
-  }
-
   clampPercent(value) {
     const n = Number(value);
     if (!Number.isFinite(n)) return 0;
@@ -998,21 +858,6 @@ class AdminDashboardPage {
 
           <article class="admin-stat-panel admin-chart-panel admin-history-main-card">
             <div class="admin-history-header">
-              <h2>${this.tr("admin.playbackTelemetry", {}, "Playback Telemetrie")}</h2>
-              <div class="admin-history-toolbar" aria-label="${this.tr("admin.historyRange", {}, "History Range")}">
-                <button type="button" id="admin-playback-line-toggle" class="admin-history-line-toggle ${this.showPlaybackTrendline ? "is-active" : ""}" aria-pressed="${this.showPlaybackTrendline ? "true" : "false"}">${this.showPlaybackTrendline ? this.tr("admin.hideTrend", {}, "Trend aus") : this.tr("admin.showTrend", {}, "Trend an")}</button>
-                <button type="button" class="admin-history-chip ${this.playbackHistoryRange === "7d" ? "is-active" : ""}" data-playback-range="7d">${this.tr("admin.days7", {}, "7 Days")}</button>
-                <button type="button" class="admin-history-chip ${this.playbackHistoryRange === "14d" ? "is-active" : ""}" data-playback-range="14d">${this.tr("admin.days14", {}, "14 Days")}</button>
-                <button type="button" class="admin-history-chip ${this.playbackHistoryRange === "30d" ? "is-active" : ""}" data-playback-range="30d">${this.tr("admin.days30", {}, "30 Days")}</button>
-                <button type="button" class="admin-history-chip ${this.playbackHistoryRange === "month" ? "is-active" : ""}" data-playback-range="month">${this.tr("admin.month", {}, "Monat")}</button>
-                <select id="admin-playback-month-select" class="admin-history-month-select" aria-label="${this.tr("admin.selectMonth", {}, "Monat waehlen")}"></select>
-              </div>
-            </div>
-            <div id="admin-chart-playback-telemetry" class="admin-history-daily-grid"></div>
-          </article>
-
-          <article class="admin-stat-panel admin-chart-panel admin-history-main-card">
-            <div class="admin-history-header">
               <h2>${this.tr("admin.dailyPeakConcurrent", {}, "Daily Peak Concurrent Streams")}</h2>
               <div class="admin-history-toolbar" aria-label="${this.tr("admin.historyRange", {}, "History Range")}">
                 <button type="button" id="admin-history-line-toggle" class="admin-history-line-toggle ${this.showHistoryTrendline ? "is-active" : ""}" aria-pressed="${this.showHistoryTrendline ? "true" : "false"}">${this.showHistoryTrendline ? this.tr("admin.hideTrend", {}, "Trend aus") : this.tr("admin.showTrend", {}, "Trend an")}</button>
@@ -1072,24 +917,6 @@ class AdminDashboardPage {
       });
     });
 
-    pageHome.querySelectorAll("[data-playback-range]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const selectedRange = btn.dataset.playbackRange || "30d";
-        if (this.playbackHistoryRange === selectedRange) return;
-        this.playbackHistoryRange = selectedRange;
-        pageHome.querySelectorAll("[data-playback-range]").forEach((chip) => {
-          chip.classList.toggle("is-active", chip === btn);
-        });
-        const monthSelect = document.getElementById(
-          "admin-playback-month-select",
-        );
-        if (monthSelect)
-          monthSelect.disabled = this.playbackHistoryRange !== "month";
-        if (this.latestStats)
-          this.renderPlaybackTelemetrySuite(this.latestStats);
-      });
-    });
-
     document
       .getElementById("admin-history-month-select")
       ?.addEventListener("change", (event) => {
@@ -1116,38 +943,6 @@ class AdminDashboardPage {
           : this.tr("admin.showTrend", {}, "Trend an");
         if (this.latestStats) this.renderHistorySuite(this.latestStats);
       });
-
-    document
-      .getElementById("admin-playback-month-select")
-      ?.addEventListener("change", (event) => {
-        this.selectedPlaybackMonth = event.target.value;
-        this.playbackHistoryRange = "month";
-        pageHome.querySelectorAll("[data-playback-range]").forEach((chip) => {
-          chip.classList.toggle(
-            "is-active",
-            chip.dataset.playbackRange === "month",
-          );
-        });
-        if (this.latestStats)
-          this.renderPlaybackTelemetrySuite(this.latestStats);
-      });
-
-    document
-      .getElementById("admin-playback-line-toggle")
-      ?.addEventListener("click", (event) => {
-        this.showPlaybackTrendline = !this.showPlaybackTrendline;
-        const toggleBtn = event.currentTarget;
-        toggleBtn.classList.toggle("is-active", this.showPlaybackTrendline);
-        toggleBtn.setAttribute(
-          "aria-pressed",
-          this.showPlaybackTrendline ? "true" : "false",
-        );
-        toggleBtn.textContent = this.showPlaybackTrendline
-          ? this.tr("admin.hideTrend", {}, "Trend aus")
-          : this.tr("admin.showTrend", {}, "Trend an");
-        if (this.latestStats)
-          this.renderPlaybackTelemetrySuite(this.latestStats);
-      });
   }
 
   setRefreshButtonLoading(isLoading) {
@@ -1170,9 +965,6 @@ class AdminDashboardPage {
       this.latestStats = stats;
       this.updateHistoryMonthSelect(
         stats.charts?.watchActivity30d?.labels || [],
-      );
-      this.updatePlaybackMonthSelect(
-        stats.charts?.playbackTelemetryDaily?.labels || [],
       );
       this.applyLiveMetrics(stats);
       this.setText(
@@ -1211,7 +1003,6 @@ class AdminDashboardPage {
         ["#ff6b6b", "#ffd166", "#06d6a0"],
       );
 
-      this.renderPlaybackTelemetrySuite(stats);
       this.renderHistorySuite(stats);
 
       this.renderUsers7dCard(

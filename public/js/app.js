@@ -294,8 +294,8 @@ class App {
         return;
       }
 
-      const isCollapsed = channelSidebar?.classList.contains("collapsed");
-      setSidebarCollapsed(!isCollapsed);
+      // Desktop sidebar is fixed-open now; do not collapse/expand via hotkey.
+      setSidebarCollapsed(false, { persist: false });
     };
 
     if (channelToggleBtn && channelSidebar && channelOverlay) {
@@ -318,9 +318,6 @@ class App {
       });
     }
 
-    // Desktop sidebar collapse toggle
-    const sidebarCollapseBtn = document.getElementById("sidebar-collapse-btn");
-    const sidebarExpandBtn = document.getElementById("sidebar-expand-btn");
     const sourceSelect = document.getElementById("source-select");
     const liveCategorySelect = document.getElementById("live-category-select");
     const searchInput = document.getElementById("channel-search");
@@ -371,16 +368,6 @@ class App {
           );
         }
 
-        if (
-          liveSidebarHeaderRow &&
-          !liveSidebarHeaderRow.contains(searchWrapper)
-        ) {
-          liveSidebarHeaderRow.insertBefore(
-            searchWrapper,
-            sidebarCollapseBtn || null,
-          );
-        }
-
         if (liveSidebarControls) {
           if (!liveSidebarControls.contains(sourceControlNode)) {
             liveSidebarControls.appendChild(sourceControlNode);
@@ -391,18 +378,15 @@ class App {
           ) {
             liveSidebarControls.appendChild(groupControlNode);
           }
+          if (!liveSidebarControls.parentElement?.contains(searchWrapper)) {
+            liveSidebarControls.insertAdjacentElement(
+              "afterend",
+              searchWrapper,
+            );
+          }
         }
       }
     };
-
-    sidebarCollapseBtn?.addEventListener("click", () => {
-      const isCollapsed = channelSidebar?.classList.contains("collapsed");
-      setSidebarCollapsed(!isCollapsed);
-    });
-    sidebarExpandBtn?.addEventListener("click", () => {
-      const isCollapsed = channelSidebar?.classList.contains("collapsed");
-      setSidebarCollapsed(!isCollapsed);
-    });
 
     // Default behavior: keep groups sidebar open on desktop.
     // On touch viewports the drawer remains closed until user opens it.
@@ -416,8 +400,7 @@ class App {
       syncLiveControlLayout();
       if (!isMobileSidebarViewport()) {
         setChannelDrawerOpen(false);
-        const collapsed = localStorage.getItem("sidebarCollapsed") === "true";
-        setSidebarCollapsed(collapsed, { persist: false });
+        setSidebarCollapsed(false, { persist: false });
       } else {
         setSidebarCollapsed(false, { persist: false });
       }
@@ -450,11 +433,6 @@ class App {
           channelSidebar?.classList.contains("active")
         ) {
           setChannelDrawerOpen(false);
-        } else if (
-          !isMobileSidebarViewport() &&
-          !channelSidebar?.classList.contains("collapsed")
-        ) {
-          setSidebarCollapsed(true);
         }
       }
     });

@@ -227,55 +227,11 @@
               id="channel-sidebar-overlay"
             ></div>
 
-            <!-- Expand button (visible when sidebar collapsed on desktop) -->
-            <button
-              class="sidebar-expand-btn"
-              id="sidebar-expand-btn"
-              title="Expand sidebar"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                class="icon"
-              >
-                <path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z" />
-              </svg>
-            </button>
-
             <!-- Channel Sidebar -->
             <aside class="channel-sidebar" id="channel-sidebar">
               <div class="sidebar-header">
                 <div class="sidebar-header-row" id="live-sidebar-header-row">
-                  <div class="search-wrapper">
-                    <input
-                      type="text"
-                      id="channel-search"
-                      placeholder="Search channels..."
-                      class="search-input"
-                    />
-                    <button
-                      type="button"
-                      class="search-clear"
-                      title="Clear search"
-                    >
-                      &times;
-                    </button>
-                  </div>
-                  <button
-                    id="sidebar-collapse-btn"
-                    class="btn btn-sm btn-ghost sidebar-collapse-btn"
-                    title="Collapse sidebar"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      class="icon"
-                    >
-                      <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
-                    </svg>
-                  </button>
+                  <h2 id="live-sidebar-title">Live TV</h2>
                 </div>
                 <div class="sidebar-controls" id="live-sidebar-controls">
                   <select id="source-select" class="source-select">
@@ -284,6 +240,21 @@
                   <select id="live-category-select" class="source-select">
                     <option value="">All Groups</option>
                   </select>
+                </div>
+                <div class="search-wrapper">
+                  <input
+                    type="text"
+                    id="channel-search"
+                    placeholder="Search channels..."
+                    class="search-input"
+                  />
+                  <button
+                    type="button"
+                    class="search-clear"
+                    title="Clear search"
+                  >
+                    &times;
+                  </button>
                 </div>
               </div>
               <div id="channel-list" class="channel-list">
@@ -532,14 +503,17 @@
                   &times;
                 </button>
               </div>
-              <button id="guide-prev" class="btn btn-ghost">
-                &larr; Earlier
+              <button id="guide-prev" class="btn btn-ghost guide-nav-btn">
+                <span class="guide-nav-arrow" aria-hidden="true">&larr;</span>
+                <span id="guide-prev-label">Earlier</span>
               </button>
               <span id="guide-date" class="guide-date">Today</span>
-              <button id="guide-next" class="btn btn-ghost">
-                Later &rarr;
+              <button id="guide-next" class="btn btn-ghost guide-nav-btn">
+                <span id="guide-next-label">Later</span>
+                <span class="guide-nav-arrow" aria-hidden="true">&rarr;</span>
               </button>
             </div>
+            <div class="guide-group-list" id="guide-group-list"></div>
           </div>
           <div id="epg-grid" class="epg-grid">
             <div class="empty-state">
@@ -589,6 +563,7 @@
                 Favorites
               </button>
             </div>
+            <div class="movies-category-list" id="movies-category-list"></div>
           </div>
           <div id="movies-preplay" class="preplay-screen hidden">
             <button class="preplay-back-btn" id="movies-preplay-back">
@@ -726,6 +701,7 @@
                 Favorites
               </button>
             </div>
+            <div class="series-category-list" id="series-category-list"></div>
           </div>
 
           <div class="series-content">

@@ -69,6 +69,7 @@
       "guide.earlier": "Earlier",
       "guide.later": "Later",
       "guide.today": "Today",
+      "guide.tomorrow": "Tomorrow",
       "guide.noData": "No EPG data available",
       "guide.addSourceHint": "Add an EPG source in Settings",
 
@@ -451,6 +452,7 @@
       "guide.earlier": "Früher",
       "guide.later": "Später",
       "guide.today": "Heute",
+      "guide.tomorrow": "Morgen",
       "guide.noData": "Keine EPG-Daten verfügbar",
       "guide.addSourceHint": "Füge eine EPG-Quelle in den Einstellungen hinzu",
 
@@ -878,6 +880,7 @@
     setText('.nav-link[data-page="home"] span:last-child', "nav.home");
     setText('.nav-link[data-page="live"] span:last-child', "nav.live");
     setText("#live-mobile-title", "nav.live");
+    setText("#live-sidebar-title", "nav.live");
     setText('.nav-link[data-page="guide"] span:last-child', "nav.guide");
     setText('.nav-link[data-page="movies"] span:last-child', "nav.movies");
     setText('.nav-link[data-page="series"] span:last-child', "nav.series");
@@ -900,8 +903,8 @@
     setText("#page-guide .guide-header h2", "guide.title");
     setPlaceholder("#epg-search", "common.searchChannels");
     setTitle("#page-guide .search-clear", "common.clearSearch");
-    setText("#guide-prev", "guide.earlier");
-    setText("#guide-next", "guide.later");
+    setText("#guide-prev-label", "guide.earlier");
+    setText("#guide-next-label", "guide.later");
     setText("#guide-date", "guide.today");
 
     setText("#page-movies .movies-header h2", "nav.movies");

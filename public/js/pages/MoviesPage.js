@@ -9,6 +9,7 @@ class MoviesPage {
     this.container = document.getElementById("movies-grid");
     this.sourceSelect = document.getElementById("movies-source-select");
     this.categorySelect = document.getElementById("movies-category-select");
+    this.categoryList = document.getElementById("movies-category-list");
     this.searchInput = document.getElementById("movies-search");
 
     this.movies = [];
@@ -110,6 +111,7 @@ class MoviesPage {
 
     // Category change handler
     this.categorySelect?.addEventListener("change", () => {
+      this.renderCategorySidebar();
       this.loadMovies();
     });
 
@@ -279,9 +281,94 @@ class MoviesPage {
         option.textContent = c.category_name;
         this.categorySelect.appendChild(option);
       });
+
+      this.renderCategorySidebar();
     } catch (err) {
       console.error("Error loading categories:", err);
     }
+  }
+
+  renderCategorySidebar() {
+    if (!this.categoryList) return;
+
+    const selectedValue = this.categorySelect?.value || "";
+    const selectedSourceId = this.sourceSelect?.value || "";
+    const visibleCategories = selectedSourceId
+      ? this.categories.filter(
+          (c) => String(c.sourceId) === String(selectedSourceId),
+        )
+      : this.categories;
+
+    const bySource = new Map(this.sources.map((s) => [String(s.id), s]));
+
+    const allLabel = this.tr("common.allCategories");
+    const rows = [
+      {
+        value: "",
+        name: allLabel,
+        sourceName: "",
+      },
+      ...visibleCategories.map((c) => ({
+        value: `${c.sourceId}:${c.category_id}`,
+        name: c.category_name,
+        sourceName: selectedSourceId
+          ? ""
+          : this.getDisplaySourceName(bySource.get(String(c.sourceId))),
+      })),
+    ];
+
+    this.categoryList.innerHTML = rows
+      .map((row) => {
+        const isActive = row.value === selectedValue;
+        const sourceBadge = row.sourceName
+          ? `<span class="movies-category-source">${row.sourceName}</span>`
+          : "";
+        return `
+          <button
+            type="button"
+            class="movies-category-item ${isActive ? "active" : ""}"
+            data-category-value="${this.escapeAttr(row.value)}"
+            title="${this.escapeAttr(row.name)}"
+          >
+            <span class="movies-category-name">${this.escapeHtml(row.name)}</span>
+            ${sourceBadge}
+          </button>
+        `;
+      })
+      .join("");
+
+    this.categoryList
+      .querySelectorAll(".movies-category-item")
+      .forEach((button) => {
+        button.addEventListener("click", () => {
+          const value = button.getAttribute("data-category-value") || "";
+          if (!this.categorySelect || this.categorySelect.value === value)
+            return;
+
+          this.categorySelect.value = value;
+          this.categorySelect.dispatchEvent(
+            new Event("change", { bubbles: true }),
+          );
+        });
+      });
+  }
+
+  escapeAttr(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   async loadMovies() {

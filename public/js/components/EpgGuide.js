@@ -11,6 +11,7 @@ class EpgGuide {
     this.nextBtn = document.getElementById("guide-next");
     this.nextBtn = document.getElementById("guide-next");
     this.groupSelect = document.getElementById("epg-group-select");
+    this.groupList = document.getElementById("guide-group-list");
     this.searchInput = document.getElementById("epg-search");
 
     this.channels = [];
@@ -58,6 +59,11 @@ class EpgGuide {
     // Group filter change
     this.groupSelect?.addEventListener("change", () => {
       this.selectedGroup = this.groupSelect.value;
+      this.renderGuideGroupList(
+        this._lastGuideGroups || [],
+        this._lastHasFavorites || false,
+        this._lastGroupCounts || new Map(),
+      );
       this.render();
     });
 
@@ -354,6 +360,89 @@ class EpgGuide {
     }
   }
 
+  renderGuideGroupList(groups, hasFavorites, groupCounts) {
+    if (!this.groupList) return;
+
+    const rows = [];
+    rows.push({
+      value: "",
+      name: "All Groups",
+      count: this.allMatchedChannels?.length || 0,
+    });
+
+    if (hasFavorites) {
+      rows.push({
+        value: "Favorites",
+        name: "Favorites",
+        count: this.allMatchedChannels.filter((m) =>
+          this.favorites.has(
+            `${m.sourceChannel.sourceId}:${m.sourceChannel.id}`,
+          ),
+        ).length,
+      });
+    }
+
+    groups.forEach((groupName) => {
+      rows.push({
+        value: groupName,
+        name: groupName,
+        count: groupCounts.get(groupName) || 0,
+      });
+    });
+
+    this.groupList.innerHTML = rows
+      .map((row) => {
+        const isActive =
+          String(this.selectedGroup || "") === String(row.value || "");
+        const isFavorites = row.value === "Favorites";
+        return `
+          <button
+            type="button"
+            class="guide-group-item ${isFavorites ? "favorites-group" : ""} ${isActive ? "active" : ""}"
+            aria-pressed="${isActive ? "true" : "false"}"
+            data-group-value="${this.escapeAttr(row.value)}"
+            title="${this.escapeAttr(row.name)}"
+          >
+            <span class="guide-group-name">${this.escapeHtml(row.name)}</span>
+            <span class="guide-group-count">${row.count}</span>
+          </button>
+        `;
+      })
+      .join("");
+
+    this.groupList.querySelectorAll(".guide-group-item").forEach((button) => {
+      button.addEventListener("click", () => {
+        const value = button.getAttribute("data-group-value") || "";
+        this.selectedGroup = value;
+        if (this.groupSelect) this.groupSelect.value = value;
+        this.renderGuideGroupList(
+          this._lastGuideGroups || [],
+          this._lastHasFavorites || false,
+          this._lastGroupCounts || new Map(),
+        );
+        this.render();
+      });
+    });
+  }
+
+  escapeAttr(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   /**
    * Render the EPG grid
    */
@@ -422,6 +511,15 @@ class EpgGuide {
 
     // Add Favorites at the top if there are any
     const hasFavorites = this.favorites.size > 0;
+    const groupCounts = new Map();
+    allChannels.forEach((m) => {
+      const groupName = m.sourceChannel.groupTitle || "Uncategorized";
+      groupCounts.set(groupName, (groupCounts.get(groupName) || 0) + 1);
+    });
+
+    this._lastGuideGroups = groups;
+    this._lastHasFavorites = hasFavorites;
+    this._lastGroupCounts = groupCounts;
 
     // Only rebuild dropdown if groups have changed (performance optimization)
     const groupsKey = groups.join("|") + (hasFavorites ? "|FAV" : "");
@@ -454,6 +552,8 @@ class EpgGuide {
       if (this.groupSelect) this.groupSelect.value = "";
     }
 
+    this.renderGuideGroupList(groups, hasFavorites, groupCounts);
+
     // Store all channels (matched with EPG data) for filtering
     this.allMatchedChannels = allChannels;
     this.updateFilteredChannels();
@@ -477,8 +577,8 @@ class EpgGuide {
 
     // Build HTML structure - header is INSIDE scroll container for natural sync
     this.container.innerHTML = `
-      <div class="epg-container" style="position: relative;">
-        <div class="epg-scroll-container" style="overflow: auto; max-height: calc(100vh - 200px);">
+      <div class="epg-container" style="position: relative; height: 100%;">
+        <div class="epg-scroll-container" style="overflow: auto; height: 100%;">
           <div class="epg-time-header">
             <div class="epg-header-corner"></div>
             <div class="epg-time-slots">
@@ -914,13 +1014,17 @@ class EpgGuide {
     const today = new Date();
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
+    const appLang =
+      window.I18n?.language || document.documentElement.lang || "en";
+    const locale = appLang.toLowerCase().startsWith("de") ? "de-DE" : "en-US";
+    const t = window.I18n?.t || ((key, fallback) => fallback || key);
 
     if (date.toDateString() === today.toDateString()) {
-      this.dateDisplay.textContent = "Today";
+      this.dateDisplay.textContent = t("guide.today", "Today");
     } else if (date.toDateString() === tomorrow.toDateString()) {
-      this.dateDisplay.textContent = "Tomorrow";
+      this.dateDisplay.textContent = t("guide.tomorrow", "Tomorrow");
     } else {
-      this.dateDisplay.textContent = date.toLocaleDateString([], {
+      this.dateDisplay.textContent = date.toLocaleDateString(locale, {
         weekday: "short",
         month: "short",
         day: "numeric",
